@@ -1,14 +1,15 @@
 // Service worker: lets the app open without a connection (DECISIONS D17).
 // Bump VERSION whenever you change this file's caching or the SHELL list; old caches are then deleted.
 // SHELL lists every file the app needs, so a new file in css/ or js/ goes here too (the tests check).
-const VERSION = 'todo-v5';
+const VERSION = 'todo-v6';
 const SHELL = ['./', 'firebase-config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'fonts/AtkinsonHyperlegibleNext.woff2',
   'css/base.css', 'css/layout.css', 'css/items.css', 'css/gantt.css', 'css/dialogs.css',
   'js/main.js', 'js/config.js', 'js/format.js', 'js/models.js', 'js/store.js', 'js/state.js', 'js/actions.js', 'js/sync.js',
   'js/router.js', 'js/events.js', 'js/views/dom.js', 'js/views/render.js', 'js/views/rows.js', 'js/views/project.js',
   'js/views/gantt.js', 'js/views/pickers.js', 'js/views/editors.js', 'js/views/fields.js', 'js/reorder.js',
-  'js/repeat.js', 'js/calendar.js', 'js/views/datepicker.js'];
+  'js/repeat.js', 'js/calendar.js', 'js/views/datepicker.js',
+  'js/views/timefield.js'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(VERSION)

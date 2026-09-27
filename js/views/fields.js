@@ -1,12 +1,13 @@
 // The dates, time, repeat, price and link fields. The composer ('add') and the editor ('edit') share them, so they
 // look and behave the same (D47): start and end side by side, then time and repeat, then price and link.
-// Dates are picked from the app's own calendar (D52).
+// Dates are picked from the app's own calendar (D52); the time can be "Any time" (D53).
 import { parsePrice, parseUrl, weekdayName } from '../format.js';
 import { DatePicker } from './datepicker.js';
 import { $ } from './dom.js';
+import { TimeField } from './timefield.js';
 
 const dateHTML = (form, name, label) => `<div class="when"><span id="${form}-${name}-label">${label}</span>
-  <button type="button" id="${form}-${name}" class="field date unset" value="" aria-labelledby="${form}-${name}-label ${form}-${name}"
+  <button type="button" id="${form}-${name}" class="field pick unset" value="" aria-labelledby="${form}-${name}-label ${form}-${name}"
     aria-haspopup="dialog" aria-expanded="false">Pick a date</button></div>`;
 
 const fieldsHTML = form => `
@@ -14,7 +15,11 @@ const fieldsHTML = form => `
   <div id="${form}-calendar" class="datepicker" role="dialog" hidden></div>
   <p id="${form}-dates-error" class="error" role="alert" hidden></p>
   <div class="pair">
-    <label class="when"><span>Time</span><input id="${form}-time" class="field" type="time"></label>
+    <div class="when"><span id="${form}-time-label">Time</span><div class="time-field">
+      <button type="button" id="${form}-anytime" class="field pick unset" aria-labelledby="${form}-time-label ${form}-anytime">Any time</button>
+      <input id="${form}-time" class="field" type="time" aria-labelledby="${form}-time-label" hidden>
+      <button type="button" id="${form}-anytime-clear" class="clear-time" aria-label="Any time (no set time)" title="Any time" hidden>×</button>
+    </div></div>
     <label class="when"><span>Repeat</span><select id="${form}-repeat" class="field">
       <option value="">Never</option><option value="day">Daily</option><option value="week">Weekly</option><option value="month">Monthly</option>
     </select></label>
@@ -32,12 +37,13 @@ const fieldsHTML = form => `
 
 const field = (form, name) => $(`#${form}-${name}`);
 const CHECKED = ['price', 'url', 'time', 'every'];   // typed fields that can refuse what's typed; dates report below them
-const pickers = {};
+const pickers = {}, times = {};
 
 export function renderFields() {   // once, at start-up, into each <div data-fields="add|edit">
   for (const form of ['add', 'edit']) {
     $(`[data-fields="${form}"]`).innerHTML = fieldsHTML(form);
     pickers[form] = new DatePicker({ start: field(form, 'start'), end: field(form, 'end') }, field(form, 'calendar'));
+    times[form] = new TimeField(field(form, 'time'), field(form, 'anytime'), field(form, 'anytime-clear'));
     for (const name of ['repeat', 'every']) field(form, name).addEventListener('input', () => showRhythm(form));
     for (const name of CHECKED) field(form, name).addEventListener('input', event => event.target.setCustomValidity(''));
     for (const name of ['start', 'end']) field(form, name).addEventListener('input', () => { field(form, 'dates-error').hidden = true; });
@@ -73,7 +79,8 @@ export function readFields(form) {
 export function fillFields(form, item) {   // show an item's values (the editor), or none (after adding)
   const f = name => field(form, name), repeat = item.repeat;
   f('price').value = item.price == null ? '' : (item.price / 100).toFixed(2);
-  for (const name of ['url', 'time']) f(name).value = item[name] ?? '';
+  f('url').value = item.url ?? '';
+  times[form].set(item.time);
   for (const name of ['start', 'end']) pickers[form].set(name, item[name]);
   pickers[form].close();
   f('dates-error').hidden = true;

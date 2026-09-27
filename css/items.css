@@ -8,8 +8,12 @@
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; max-width: 26rem; }
 .when { display: grid; gap: .15rem; min-width: 0; font-size: .8rem; color: var(--muted); }
 .when .field { font-size: .95rem; color: var(--ink); }
-.date { text-align: left; }   /* a date field opens the calendar below (D52) */
-.date.unset { color: var(--muted); }
+.pick { text-align: left; }   /* a date field opens the calendar below (D52); "Any time" opens the time picker (D53) */
+.pick.unset { color: var(--muted); }
+.time-field { display: flex; align-items: center; gap: .35rem; }
+.time-field .field { flex: 1; min-width: 0; }
+.clear-time { flex: none; width: 2rem; height: 2rem; border-radius: 6px; font-size: 1.15rem; color: var(--muted); text-align: center; }
+.clear-time:hover { background: var(--soft); color: var(--ink); }
 .datepicker { max-width: 26rem; padding: .6rem .75rem .5rem; border: 1px solid var(--line); border-radius: 8px; background: var(--page); }
 .dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .35rem; font-weight: 650; }
 .dp-head button { width: 2.2rem; height: 2.2rem; border-radius: 6px; font-size: 1.2rem; line-height: 1; color: var(--muted); text-align: center; }

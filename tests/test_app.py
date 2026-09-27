@@ -90,6 +90,10 @@ async def pick_date(page, form, name, iso):
         await page.click(f'{panel} [data-months="{1 if shown < iso[:7] else -1}"]')
     await page.click(f'{panel} .day:not(.other)[data-day="{iso}"]')
 
+async def set_time(page, form, time):
+    """Tap Any time, then type the time (D53). Escape first closes the browser's time picker that tapping opens."""
+    await page.click(f'#{form}-anytime'); await page.keyboard.press('Escape'); await page.fill(f'#{form}-time', time)
+
 def date_value(page, selector): return page.eval_on_selector(selector, 'e => e.value')
 
 def titles(page, where='#list'): return page.locator(f'{where} .title').all_inner_texts()
@@ -612,7 +616,7 @@ async def test_date_picker(browser, url):
     last = await days.nth(41).get_attribute('data-day')
     await days.nth(41).click()
     check('a grey day can be picked too', await date_value(page, '#add-start') == last and await page.is_hidden(panel)
-          and await page.get_attribute('#add-start', 'class') == 'field date', await date_value(page, '#add-start'))
+          and 'unset' not in await page.get_attribute('#add-start', 'class'), await date_value(page, '#add-start'))
     await page.click('#add-start')
     check('it opens on the month of its date', await page.get_attribute(f'{panel} .dp-grid', 'data-month') == last[:7]
           and await page.evaluate("document.activeElement.dataset.day") == last)
@@ -650,14 +654,15 @@ async def test_repeats_and_alerts(browser, url):
     # ── Repeating tasks (D50) ──
     await page.click('[data-view="gym"]')
     await page.fill('#add-title', 'Workout'); await page.dispatch_event('#add-title', 'input')
-    await page.fill('#add-time', '18:00'); await page.select_option('#add-repeat', 'week')
+    await set_time(page, 'add', '18:00'); await page.select_option('#add-repeat', 'week')
     check('weekly shows every n weeks and the weekdays', await page.is_visible('#add-days') and await page.inner_text('#add-unit') == 'week')
     for d in (0, 2, 4): await page.click(f'#add-days input[value="{d}"]')
     await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
     stored_tasks_now = await stored_tasks(page)
     check('a repeating task is stored with its rule and time, dated to its first day', workout()['repeat'] == {'every': 1, 'unit': 'week', 'days': [0, 2, 4]}
           and workout()['time'] == '18:00' and workout()['end'] == first.isoformat() and workout()['start'] is None, workout())
-    check('the composer is empty again after adding', await page.input_value('#add-time') == '' and await page.is_hidden('#add-rhythm'))
+    check('the composer is empty again after adding', await page.input_value('#add-time') == ''
+          and await page.get_attribute('#add-anytime', 'hidden') is None and await page.is_hidden('#add-rhythm'))
     row = '#list .task:has-text("Workout")'
     tags = await page.inner_text(f'{row} .tags')
     check('its row shows the repeat and the time', '↻ Mon, Wed, Fri' in tags and '18:00' in tags, tags)
@@ -694,10 +699,31 @@ async def test_repeats_and_alerts(browser, url):
           and len(ctx.pages) == 1 and await page.is_visible('#editor'))
     await page.click('#editor [data-act="close"]')
     await page.fill('#add-title', 'Call the bank'); await page.dispatch_event('#add-title', 'input')
-    await page.fill('#add-time', '09:30'); await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
+    await set_time(page, 'add', '09:30'); await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
     message = await page.eval_on_selector('#add-time', 'e => e.validationMessage')
     check('a time needs a date', find(await stored_tasks(page), 'Call the bank') is None and 'date' in message, message)
-    await page.fill('#add-time', ''); await page.fill('#add-title', ''); await page.dispatch_event('#add-title', 'input')
+    await page.click('#add-anytime-clear'); await page.fill('#add-title', ''); await page.dispatch_event('#add-title', 'input')
+
+    # ── Any time: no set time (D53) ──
+    await page.fill('#add-title', 'Daily stretch'); await page.dispatch_event('#add-title', 'input')
+    check('the time starts as Any time', await page.is_visible('#add-anytime') and await page.is_hidden('#add-time'))
+    await page.click('#add-anytime'); await page.keyboard.press('Escape'); await page.click('#add-title')
+    check('opening the time and leaving it empty stays Any time', await page.is_visible('#add-anytime'))
+    await page.select_option('#add-repeat', 'day'); await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
+    stretch = find(await stored_tasks(page), 'Daily stretch')
+    check('a repeating task can be for any time of the day', stretch['time'] is None and stretch['repeat']['unit'] == 'day'
+          and stretch['end'] == today.isoformat() and ':' not in await page.inner_text('#list .task:has-text("Daily stretch") .tags'), stretch)
+    await page.click('[data-view="gym"]')
+    await page.click(f'{row} .body')
+    check('a set time shows with a × to go back to any time', await page.input_value('#edit-time') == '18:00'
+          and await page.is_visible('#edit-anytime-clear') and await page.is_hidden('#edit-anytime'))
+    await page.click('#edit-anytime-clear')
+    check('× goes back to Any time', await page.is_visible('#edit-anytime') and await page.input_value('#edit-time') == '')
+    async with page.expect_download() as info:
+        await page.click('#editor [data-act="calendar"][data-to="file"]')
+    ics = open(await (await info.value).path(), encoding='utf-8', newline='').read()
+    check('saved as any time; in a calendar it is all day, with an alarm at 9:00', find(await stored_tasks(page), 'Workout')['time'] is None
+          and 'DTSTART;VALUE=DATE:' in ics and 'TRIGGER:PT9H' in ics and ':' not in await page.inner_text(f'{row} .tags'), ics)
 
     # ── A repeating project starts over (D50) ──
     await page.click('[data-view="all"]')
