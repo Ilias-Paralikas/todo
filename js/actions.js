@@ -1,6 +1,7 @@
 // Every change to the data goes through here. The screen updates only from snapshots, our own writes
 // included (D15): action → store → snapshot → render(). A few actions change only this device's view.
 import { DONE_TTL_DAYS } from './config.js';
+import { moved } from './format.js';
 import { fields, listFields } from './models.js';
 import { closeProject, openProject } from './router.js';
 import { freshDraft, listById, local, pageProject, state } from './state.js';
@@ -26,6 +27,11 @@ export const actions = {
     renderPickers();
   },
   setShow(show) { state.show = show; local.set('show', show); render(); },   // D42
+  toggleSide() {   // D48
+    state.sideHidden = !state.sideHidden;
+    local.set('side', state.sideHidden ? 'hidden' : 'shown');
+    render();
+  },
   expand(id, open = !state.expanded.has(id)) {   // a project's arrow, or tapping a sub-project (D32, D44)
     open ? state.expanded.add(id) : state.expanded.delete(id);
     local.set('expanded', JSON.stringify([...state.expanded].filter(kept => state.items.get(kept))));
@@ -75,6 +81,12 @@ export const actions = {
       + 'Their tasks stay in All and in any other lists they are on.')) return false;
     store.saveSettings({ lists });
     return true;
+  },
+  moveList(id, target, after) {   // dragged before or after another list (D46)
+    const from = state.lists.findIndex(list => list.id === id), at = state.lists.findIndex(list => list.id === target);
+    if (from < 0 || at < 0 || id === target) return;
+    const to = at + (after ? 1 : 0) - (from < at ? 1 : 0);   // its place once it has left its old one
+    if (to !== from) store.saveSettings({ lists: moved(state.lists, from, to) });
   },
   prune() {   // D13
     const cutoff = Date.now() - DONE_TTL_DAYS * 864e5;

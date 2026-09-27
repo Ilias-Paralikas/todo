@@ -1,4 +1,6 @@
-// Text, money and date helpers. Pure functions: no state, no page.
+// Small helpers for text, money, dates and arrays. Pure functions: no state, no page.
+
+export const moved = (array, from, to) => { const out = [...array]; out.splice(to, 0, ...out.splice(from, 1)); return out; };   // a copy, one entry moved
 
 export const esc = value => String(value).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);   // all user text goes through this (D26)
 export const isDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value);   // a calendar date, as <input type="date"> gives it

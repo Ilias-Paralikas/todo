@@ -521,6 +521,59 @@ async def test_subprojects_and_filter(browser, url):
     check('sub-projects and filter: no console errors', not page.errors, page.errors)
     await ctx.close()
 
+async def test_moving_and_layout(browser, url):
+    ctx, page = await context(browser, url, viewport={'width': 1280, 'height': 860})
+    await start_signed_in(page, SEED)
+    order = lambda: page.evaluate("[...document.querySelectorAll('.tab[draggable]')].map(t => t.dataset.view)")
+
+    # ── Move to (D45) ──
+    await page.click('#list .task:has-text("Climbing chalk") .body')
+    options = await page.eval_on_selector_all('#edit-opts .move option', 'els => els.map(e => e.value)')
+    check('Move to offers every list but To buy', options == ['', 'work', 'hobbies', 'gym'], options)
+    await page.select_option('#edit-opts .move', 'work')
+    pressed = await page.eval_on_selector_all('#edit-opts .chip[aria-pressed="true"]', 'els => els.map(e => e.dataset.list)')
+    await page.click('#edit-form .btn-primary'); await page.wait_for_timeout(100)
+    chalk = find(await stored_tasks(page), 'Climbing chalk')
+    check('Move to swaps its lists for the one picked, keeping To buy', sorted(pressed) == ['buy', 'work']
+          and sorted(chalk['lists']) == ['buy', 'work'], (pressed, chalk['lists']))
+
+    # ── Drag lists to reorder them (D46) ──
+    await page.drag_and_drop('[data-view="gym"]', '[data-view="work"]', target_position={'x': 30, 'y': 3})
+    await page.wait_for_timeout(150)
+    check('drag a list above another', [l['id'] for l in await stored_lists(page)] == ['gym', 'work', 'hobbies', 'buy']
+          and await order() == ['gym', 'work', 'hobbies', 'buy'], await order())
+    box = await page.locator('[data-view="buy"]').bounding_box()
+    await page.drag_and_drop('[data-view="work"]', '[data-view="buy"]', target_position={'x': 30, 'y': box['height'] - 3})
+    await page.wait_for_timeout(150)
+    check('drag a list below another', await order() == ['gym', 'hobbies', 'buy', 'work'], await order())
+    check('All stays first and cannot be dragged', await page.get_attribute('.tab >> nth=0', 'data-view') == 'all'
+          and await page.get_attribute('[data-view="all"]', 'draggable') is None)
+
+    # ── Start and end side by side, above the price (D47) ──
+    await page.fill('#add-title', 'Plan the week'); await page.dispatch_event('#add-title', 'input')
+    for form in ('add', 'edit'):
+        if form == 'edit':
+            await page.fill('#add-title', '')
+            await page.click('#list .task:has-text("Oat milk") .body')
+        boxes = {name: await page.locator(f'#{form}-{name}').bounding_box() for name in ('start', 'end', 'price', 'url')}
+        check(f'{form}: start and end on one line, above the price and link', boxes['start']['y'] == boxes['end']['y']
+              and boxes['end']['x'] > boxes['start']['x'] and boxes['price']['y'] >= boxes['start']['y'] + boxes['start']['height'], boxes)
+    await page.screenshot(path=f'{SHOTS}/editor-fields.png')
+    await page.click('#editor [data-act="close"]')
+
+    # ── Hide and show the sidebar (D48) ──
+    await page.click('#side-toggle'); await page.wait_for_timeout(50)
+    left = (await page.locator('#list').bounding_box())['x']
+    check('the sidebar button hides the lists; the tasks take the width', await page.is_hidden('.side') and left < 100
+          and await page.get_attribute('#side-toggle', 'aria-expanded') == 'false', left)
+    await page.screenshot(path=f'{SHOTS}/sidebar-hidden.png')
+    await page.reload(); await page.wait_for_timeout(250)
+    check('a hidden sidebar stays hidden on this device', await page.is_hidden('.side'))
+    await page.click('#side-toggle'); await page.wait_for_timeout(50)
+    check('the same button shows it again', await page.is_visible('.side') and await page.get_attribute('#side-toggle', 'title') == 'Hide lists')
+    check('moving and layout: no console errors', not page.errors, page.errors)
+    await ctx.close()
+
 async def test_models(browser, url):
     """The classes in js/models.js (D43), and the file layout, checked directly."""
     ctx, page = await context(browser, url)
@@ -583,6 +636,10 @@ async def test_phone(browser, url):
             await page.fill('#add-title', 'Chalk bag'); await page.dispatch_event('#add-title', 'input')
             await page.tap('#add-opts [data-list="hobbies"]')
             await page.screenshot(path=f'{shot}-composer.png')
+            start, end, price = [await page.locator(f'#add-{n}').bounding_box() for n in ('start', 'end', 'price')]
+            check(f'{name}: start and end fit side by side, above the price', start['y'] == end['y']
+                  and end['x'] + end['width'] <= width and price['y'] > start['y'], (start, end, price))
+            check(f'{name}: no sidebar button (the lists are a top bar)', await page.is_hidden('#side-toggle'))
             await page.tap('.btn-add'); await page.wait_for_timeout(100)
             chalk_bag = next(t for t in (await stored_tasks(page)).values() if t['title'] == 'Chalk bag')
             check(f'{name}: Add button adds with the picked lists', sorted(chalk_bag['lists']) == ['buy', 'hobbies'])
@@ -670,6 +727,7 @@ async def main():
             await test_projects_and_prices(browser, url)
             await test_dates_colors_links(browser, url)
             await test_subprojects_and_filter(browser, url)
+            await test_moving_and_layout(browser, url)
             await test_models(browser, url)
             await test_offline_first_run(browser, url)
             await test_phone(browser, url)

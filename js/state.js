@@ -20,6 +20,7 @@ export const state = {
   show: ['tasks', 'projects'].includes(local.get('show')) ? local.get('show') : 'all',   // lists show everything, tasks or projects (D42)
   project: null,          // the id in the URL, #p=<id> (D32)
   expanded: readSet('expanded'),   // projects and sub-projects open in the lists, per device (D25, D32, D44)
+  sideHidden: local.get('side') === 'hidden',   // the lists sidebar is hidden on this computer (D48)
   draft: null,            // composer picks: { lists, prio, project }
   editing: null,          // task editor: { id, lists, prio }
   listsDraft: null,       // lists editor: working copy of state.lists

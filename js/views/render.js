@@ -14,12 +14,15 @@ export function render() {
   $('#status').hidden = !state.offline;
   $('#status').textContent = state.queued ? 'Offline. Your changes will sync when you reconnect.' : 'Offline. Showing your last synced list.';
   $('#who').textContent = state.user?.email ? `Signed in as ${state.user.email}` : '';
+  document.body.classList.toggle('side-hidden', state.sideHidden);   // D48
+  const toggle = $('#side-toggle'), label = state.sideHidden ? 'Show lists' : 'Hide lists';
+  for (const [name, value] of [['title', label], ['aria-label', label], ['aria-expanded', !state.sideHidden]]) toggle.setAttribute(name, value);
 }
 
-function renderTabs() {   // each list with its color and open count, then the + (D9, D36)
+function renderTabs() {   // each list with its color and open count, then the + (D9, D36). Lists can be dragged (D46).
   $('#tabs').innerHTML = [{ id: 'all', name: 'All', color: 'var(--ink)' }, ...state.lists].map(list => {
     const n = state.items.rowsIn(list.id).filter(item => !item.done && item.matches(state.show)).length;
-    return `<button class="tab" data-act="view" data-view="${esc(list.id)}" style="--c:${list.color}" ${list.id === state.view ? 'aria-current="page"' : ''}>
+    return `<button class="tab" data-act="view" data-view="${esc(list.id)}" style="--c:${list.color}"${list.id === 'all' ? '' : ' draggable="true"'} ${list.id === state.view ? 'aria-current="page"' : ''}>
       <span class="dot"></span><span class="tab-name" data-text="${esc(list.name)}">${esc(list.name)}</span>${n ? `<span class="count">${n}</span>` : ''}</button>`;
   }).join('') + (state.listsLoaded ? `<button class="tab-add" data-act="editLists" aria-label="Add or edit lists" title="Add or edit lists">
       +<span class="add-label">New list</span></button>` : '');

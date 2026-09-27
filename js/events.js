@@ -1,7 +1,7 @@
 // Clicks and forms. Buttons say what they do with data-act="…"; each name is a handler in `clicks`.
 import { actions } from './actions.js';
 import { SHOPPING_LIST } from './config.js';
-import { parsePrice, parseUrl } from './format.js';
+import { moved, parsePrice, parseUrl } from './format.js';
 import { closeProject, openProject, route } from './router.js';
 import { listById, state } from './state.js';
 import { signOut } from './sync.js';
@@ -14,6 +14,7 @@ const insideOf = id => state.items.get(id)?.contents ?? [];
 
 const clicks = {
   view: el => actions.setView(el.dataset.view),
+  toggleSide: () => actions.toggleSide(),
   toggle: el => {   // show the tick first, then move the item (D24)
     const ticking = el.getAttribute('aria-checked') !== 'true', open = insideOf(el.dataset.id).filter(item => !item.done).length;
     if (ticking && open && !confirm(`Complete this project and the ${open} open item${open > 1 ? 's' : ''} in it?`)) return;
@@ -64,8 +65,8 @@ const clicks = {
     $('#lists-rows').children[i].querySelector('.swatch').focus();
   },
   moveList: el => {
-    const i = Number(el.dataset.i), j = i + Number(el.dataset.by), rows = state.listsDraft;
-    [rows[i], rows[j]] = [rows[j], rows[i]];
+    const i = Number(el.dataset.i), j = i + Number(el.dataset.by);
+    state.listsDraft = moved(state.listsDraft, i, j);
     state.picking = null;
     renderListsEditor();
     const row = $('#lists-rows').children[j];   // keep focus on the moved list
@@ -143,6 +144,12 @@ export function listen() {
     if (!extras) return;
     const { id, lists, prio } = state.editing;
     if (actions.save(id, { title: $('#edit-title').value, notes: $('#edit-notes').value, lists, prio, ...extras })) $('#editor').close();
+  });
+  $('#edit-opts').addEventListener('change', event => {   // Move to: every list but To buy is swapped for the one picked (D45)
+    if (!event.target.matches('.move') || !event.target.value) return;
+    state.editing.lists = [...state.editing.lists.filter(id => id === SHOPPING_LIST), event.target.value];
+    renderPickers();
+    $('#edit-opts .move').focus();
   });
   $('#editor').addEventListener('close', () => { state.editing = null; });
 

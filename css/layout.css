@@ -20,6 +20,11 @@
 .count { font-size: .78rem; font-variant-numeric: tabular-nums; }
 .tab-add { position: relative; padding-inline: .3rem; font-size: 1.15rem; line-height: 1; }
 .tab-add::after { content: ""; position: absolute; inset: -.6rem -.4rem; } /* bigger touch target */
+.tab[draggable="true"] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }   /* drag to reorder (D46) */
+.tab.dragging { opacity: .4; }
+.tab.drop-before { box-shadow: -2px 0 0 var(--ink); }
+.tab.drop-after { box-shadow: 2px 0 0 var(--ink); }
+.side-toggle { display: none; }   /* hide or show the sidebar, on computers (D48) */
 .status { margin: 0 0 .75rem; font-size: .88rem; color: var(--muted); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-bottom: .9rem; }
 
@@ -40,4 +45,13 @@
   .foot { position: fixed; left: 0; bottom: 0; width: var(--side-w); flex-direction: column; padding: 1rem 1.35rem 1.25rem;
           background: var(--side); border-right: 1px solid var(--line); }
   .toast { left: calc(50% + var(--side-w) / 2); }
+  .tab.drop-before { box-shadow: 0 -2px 0 var(--ink); }
+  .tab.drop-after { box-shadow: 0 2px 0 var(--ink); }
+  .side-toggle { position: fixed; top: 1.05rem; left: calc(var(--side-w) - 2.75rem); z-index: 1; display: grid; place-items: center;
+                 width: 2rem; height: 2rem; border-radius: 6px; color: var(--muted); }
+  .side-toggle:hover { background: var(--soft); color: var(--ink); }
+  .side-hidden .side-toggle { left: .75rem; }
+  .side-hidden :is(.side, .foot) { display: none; }
+  .side-hidden .content { margin-left: 0; }
+  .side-hidden .toast { left: 50%; }
 }

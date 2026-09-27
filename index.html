@@ -34,6 +34,8 @@
 <link rel="modulepreload" href="js/views/gantt.js">
 <link rel="modulepreload" href="js/views/pickers.js">
 <link rel="modulepreload" href="js/views/editors.js">
+<link rel="modulepreload" href="js/views/fields.js">
+<link rel="modulepreload" href="js/reorder.js">
 </head>
 <body>
 <p id="boot" class="boot">Loading…</p>
@@ -48,6 +50,9 @@
 </form>
 
 <main id="main" hidden>
+  <button id="side-toggle" class="side-toggle" data-act="toggleSide" aria-controls="tabs">
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7.75 3.75v12.5" stroke="currentColor" stroke-width="1.5"/></svg>
+  </button>
   <aside class="side">
     <p class="brand">Todo</p>
     <nav id="tabs" class="tabs" aria-label="Lists"></nav>
@@ -66,12 +71,7 @@
       <button class="btn btn-primary btn-add">Add</button>
       <div class="opts">
         <div id="add-opts" class="picks"></div>
-        <div class="extras">
-          <input id="add-price" class="field price" placeholder="Price in €" aria-label="Price in euros" inputmode="decimal" autocomplete="off" enterkeyhint="done" maxlength="12">
-          <label class="when"><span>Start</span><input id="add-start" class="field" type="date"></label>
-          <label class="when"><span>End</span><input id="add-end" class="field" type="date"></label>
-          <input id="add-url" class="field link-field" inputmode="url" placeholder="Link (optional)" aria-label="Link" autocomplete="off" enterkeyhint="done" maxlength="2000">
-        </div>
+        <div class="fields" data-fields="add"></div>   <!-- dates, price and link: js/views/fields.js -->
       </div>
     </form>
     <ul id="list" class="list"></ul>
@@ -98,12 +98,7 @@
     <input id="edit-title" class="field" aria-label="Task" autocomplete="off" maxlength="300" required>
     <textarea id="edit-notes" class="field" rows="4" placeholder="Description" aria-label="Description" maxlength="5000"></textarea>
     <div id="edit-opts" class="picks"></div>
-    <div class="extras">
-      <input id="edit-price" class="field price" placeholder="Price in €" aria-label="Price in euros" inputmode="decimal" autocomplete="off" maxlength="12">
-      <label class="when"><span>Start</span><input id="edit-start" class="field" type="date"></label>
-      <label class="when"><span>End</span><input id="edit-end" class="field" type="date"></label>
-    </div>
-    <input id="edit-url" class="field" inputmode="url" placeholder="Link (optional)" aria-label="Link" autocomplete="off" maxlength="2000">
+    <div class="fields" data-fields="edit"></div>
     <button type="button" id="make-project" class="link" data-act="makeProject">Make it a project</button>
     <div class="actions">
       <button type="button" class="btn btn-danger" data-act="deleteTask">Delete</button>
