@@ -66,6 +66,7 @@ button:disabled { cursor: default; opacity: .3; }
 .tab-add { position: relative; padding-inline: .3rem; font-size: 1.15rem; line-height: 1; }
 .tab-add::after { content: ""; position: absolute; inset: -.6rem -.4rem; } /* bigger touch target */
 .status { margin: 0 0 .75rem; font-size: .88rem; color: var(--muted); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-bottom: .9rem; }
 
 @media (min-width: 900px) {
   .side { position: fixed; inset: 0 auto 0 0; width: var(--side-w); overflow-y: auto; padding: 1.25rem .75rem 9rem;
@@ -79,7 +80,8 @@ button:disabled { cursor: default; opacity: .3; }
   .tab-add { margin-top: .5rem; font-size: .92rem; line-height: inherit; }
   .add-label { display: inline; }
   .content { margin-left: var(--side-w); padding: 2rem 3rem 4rem; }
-  .heading { display: block; margin: 0 0 1.25rem; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+  .heading { display: block; margin: 0; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+  .toolbar { margin-bottom: 1.25rem; }
   .foot { position: fixed; left: 0; bottom: 0; width: var(--side-w); flex-direction: column; padding: 1rem 1.35rem 1.25rem;
           background: var(--side); border-right: 1px solid var(--line); }
   .toast { left: calc(50% + var(--side-w) / 2); }
@@ -114,7 +116,11 @@ textarea.field { resize: vertical; }
 .chip::before, .tag::before { content: ""; flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c); }
 .tag.in::before { content: "↳"; width: auto; height: auto; background: none; }   /* the project of a subtask shown on its own */
 .tag.date::before { display: none; }
-.prios { display: inline-flex; justify-self: start; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.pick-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
+.prios, .segmented { display: inline-flex; justify-self: start; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.segmented button { padding: .3rem .85rem; font-size: .88rem; }
+.segmented button + button { border-left: 1px solid var(--line); }
+.segmented [aria-pressed="true"] { background: var(--ink); color: var(--page); }
 .prio { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .85rem; font-size: .88rem; }
 .prio::before, .group-name::before { content: ""; flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c); }   /* D39 */
 .prio + .prio { border-left: 1px solid var(--line); }
@@ -187,7 +193,7 @@ textarea.field { resize: vertical; }
 .g-body { display: grid; grid-template-columns: clamp(6.5rem, 30%, 14rem) minmax(0, 1fr); column-gap: .75rem; }
 .g-names { padding-top: 1.4rem; }
 .g-name { display: block; width: 100%; height: 1.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.9rem; }
-.g-name.whole { font-weight: 650; }
+.g-name.whole, .g-name.sub { font-weight: 650; }
 .g-name.done { color: var(--muted); text-decoration: line-through; }
 .g-plot { position: relative; overflow: hidden; }
 .g-axis { position: relative; height: 1.4rem; border-bottom: 1px solid var(--line); font-size: .72rem; color: var(--muted); }
@@ -252,7 +258,12 @@ textarea.field { resize: vertical; }
   </aside>
   <section class="content">
     <p id="status" class="status" role="status" hidden></p>
-    <h1 id="heading" class="heading"></h1>
+    <div class="toolbar">
+      <h1 id="heading" class="heading"></h1>
+      <div id="show" class="segmented" role="group" aria-label="Show">
+        <button data-act="show" data-show="all">Everything</button><button data-act="show" data-show="tasks">Tasks</button><button data-act="show" data-show="projects">Projects</button>
+      </div>
+    </div>
     <header id="project-head" class="project-head" hidden></header>
     <form id="add" class="composer">
       <input id="add-title" class="field" placeholder="Add a task" aria-label="New task" autocomplete="off" enterkeyhint="done" maxlength="300">
@@ -420,6 +431,7 @@ const state = {
   offline: false,       // snapshots have come from the on-device copy for 3+ seconds (D18)
   queued: false,        // local changes the server hasn't confirmed yet
   view: local.get('view') || 'all',   // checked once the lists are known (D25)
+  show: ['tasks', 'projects'].includes(local.get('show')) ? local.get('show') : 'all',   // lists show everything, tasks or projects (D42)
   project: null,        // the project whose page is open, from the URL: #p=<id> (D32)
   expanded: readSet('expanded'),   // projects showing their subtasks in the lists, per device (D25, D32)
   draft: null,          // composer picks: { lists, prio }
@@ -442,8 +454,20 @@ const prioColor = id => state.prioColors[id - 1];
 const listById = id => state.lists.find(list => list.id === id);
 const byId = id => state.index.get(id);
 // One level (D32): projects are never subtasks, and a subtask whose project is gone stands alone.
-const parentOf = task => { const parent = !task.project && task.parent && byId(task.parent); return parent?.project ? parent : null; };
-const subtasksOf = id => state.tasks.filter(t => parentOf(t)?.id === id);
+// A task's project (D41). None if the parent is missing or not a project, or if following parents loops back.
+const parentOf = task => {
+  const parent = task.parent && byId(task.parent);
+  if (!parent?.project) return null;
+  for (let up = parent, seen = new Set([task.id]); up; up = up.parent && byId(up.parent)) {
+    if (seen.has(up.id)) return null;
+    seen.add(up.id);
+  }
+  return parent;
+};
+const subtasksOf = id => state.tasks.filter(t => parentOf(t)?.id === id);   // direct children: subtasks and sub-projects
+const descendantsOf = id => subtasksOf(id).flatMap(t => [t, ...descendantsOf(t.id)]);
+const ancestorsOf = task => { const up = []; for (let p = parentOf(task); p; p = parentOf(p)) up.unshift(p); return up; };
+const showing = t => state.show === 'all' || (state.show === 'projects') === t.project;   // the list filter (D42)
 const shownProject = () => { const task = state.project && byId(state.project); return task?.project ? task : null; };
 // "4,50", "€4.50" or "4" → 450 (whole cents, D37); blank → null; anything else → NaN.
 const parsePrice = text => {
@@ -457,9 +481,9 @@ const parseUrl = text => {
   try { const url = new URL(typed ? s : `https://${s}`); return /^https?:$/.test(url.protocol) && (typed || url.hostname.includes('.')) ? url.href : false; }
   catch { return false; }
 };
-const freshDraft = () => ({ lists: state.project || state.view === 'all' ? [] : [state.view], prio: DEFAULT_PRIO });
+const freshDraft = () => ({ lists: state.project || state.view === 'all' ? [] : [state.view], prio: DEFAULT_PRIO, project: false });
 state.draft = freshDraft();
-let store, unwatch, offlineTimer, pruned = false, pushed = false;   // pushed: we opened the project page, so Back can go back
+let store, unwatch, offlineTimer, pruned = false;
 
 const actions = {
   setView(view) {
@@ -470,9 +494,13 @@ const actions = {
     render();
     renderPickers();
   },
-  openProject(id) { pushed = true; location.hash = `p=${encodeURIComponent(id)}`; },   // → route()
-  closeProject() {   // back to the list, like the phone's back gesture
-    if (pushed) return history.back();
+  openProject(id) {   // each project page is a history entry, so the phone's back gesture goes up a level (D32, D41)
+    history.pushState({ depth: (history.state?.depth ?? 0) + 1 }, '', `#p=${encodeURIComponent(id)}`);
+    route();
+  },
+  closeProject() {   // back to the list, however many project pages deep
+    const depth = history.state?.depth ?? 0;
+    if (depth) return history.go(-depth);
     history.replaceState(null, '', location.pathname + location.search);
     route();
   },
@@ -480,15 +508,15 @@ const actions = {
     title = title.trim();
     if (!title) return false;
     store.add({ title, lists: state.draft.lists, prio: state.draft.prio, done: false, created: Date.now(), doneAt: null,
-                project: false, notes: '', parent: shownProject()?.id ?? null, ...extras });
+                project: state.draft.project, notes: '', parent: shownProject()?.id ?? null, ...extras });
     state.draft = freshDraft();
     return true;
   },
-  toggle(id) {   // completing a project completes its open subtasks too (D32)
+  toggle(id) {   // completing a project completes everything open inside it (D32, D41)
     const task = byId(id);
     if (!task) return;
     const done = !task.done, doneAt = done ? Date.now() : null;
-    const also = done ? subtasksOf(id).filter(t => !t.done) : [];
+    const also = done ? descendantsOf(id).filter(t => !t.done) : [];
     store.patchMany([task, ...also].map(t => ({ id: t.id, done, doneAt })));
   },
   save(id, { title, notes, lists, prio, price, start, end, url }) {
@@ -502,13 +530,14 @@ const actions = {
     prioColors[id - 1] = color;
     store.saveSettings({ prioColors });
   },
-  makeProject(id) { store.patch(id, { project: true }); actions.openProject(id); },   // D32
+  makeProject(id) { store.patch(id, { project: true }); actions.openProject(id); },   // any task, subtasks too (D41)
+  setShow(show) { state.show = show; local.set('show', show); render(); },   // D42
   expand(id) {
     state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id);
     local.set('expanded', JSON.stringify([...state.expanded].filter(byId)));
     render();
   },
-  remove(id) { store.removeMany([id, ...subtasksOf(id).map(t => t.id)]); },   // a project goes with its subtasks (D32)
+  remove(id) { store.removeMany([id, ...descendantsOf(id).map(t => t.id)]); },   // a project goes with everything inside it (D41)
   saveLists(draft) {   // D9, D11
     const before = new Map(state.lists.map(list => [list.id, list]));
     const lists = draft.map(list => ({ ...list, name: list.name.trim() || before.get(list.id)?.name || '' }))
@@ -602,7 +631,7 @@ const hostOf = url => new URL(url).hostname.replace(/^www\./, '');
 
 function render() {
   $('#tabs').innerHTML = [{ id: 'all', name: 'All', color: 'var(--ink)' }, ...state.lists].map(list => {
-    const n = rowsOf(list.id).filter(t => !t.done).length;
+    const n = rowsOf(list.id).filter(t => !t.done && showing(t)).length;
     return `<button class="tab" data-act="view" data-view="${esc(list.id)}" style="--c:${list.color}" ${list.id === state.view ? 'aria-current="page"' : ''}>
       <span class="dot"></span><span class="tab-name" data-text="${esc(list.name)}">${esc(list.name)}</span>${n ? `<span class="count">${n}</span>` : ''}</button>`;
   }).join('') + (state.listsLoaded ? `<button class="tab-add" data-act="editLists" aria-label="Add or edit lists" title="Add or edit lists">
@@ -610,14 +639,16 @@ function render() {
 
   const current = listById(state.view), project = shownProject();
   $('#heading').textContent = current?.name ?? 'All';   // shown on wide screens, where the lists are a sidebar (D36)
-  $('#heading').hidden = Boolean(project);
+  $('.toolbar').hidden = Boolean(project);   // lists only: a project page has its own header
   $('#add-title').placeholder = project ? 'Add a subtask' : current ? `Add to ${current.name}` : 'Add a task';
   $('#project-head').hidden = !project;
   if (project) $('#project-head').innerHTML = projectHeadHTML(project);
-  const shown = project ? subtasksOf(project.id) : rowsOf(state.view);
+  const shown = project ? subtasksOf(project.id) : rowsOf(state.view).filter(showing);
+  for (const button of $('#show').children) button.setAttribute('aria-pressed', button.dataset.show === state.show);
   const todo = shown.filter(t => !t.done).sort(byPriority);
   const done = shown.filter(t => t.done).sort((a, b) => b.doneAt - a.doneAt);
   $('#list').innerHTML = !state.loaded ? '' : todo.length ? groupsHTML(todo) : `<li class="empty">${project ? 'No subtasks yet. Add one above.'
+    : state.show !== 'all' ? `No ${state.show} ${current ? `in ${esc(current.name)}` : 'here'}.`
     : `${current ? `Nothing in ${esc(current.name)}.` : 'Nothing to do.'} Add a task above.`}</li>`;
   const priced = [...todo, ...todo.flatMap(t => t.project ? subtasksOf(t.id).filter(s => !s.done) : [])].filter(t => t.price !== null);
   $('#total').hidden = !priced.length;   // D33
@@ -666,7 +697,8 @@ function tagsHTML(t, nested = false) {   // the *other* lists it's on (D22); for
 
 function projectHeadHTML(p) {   // D32
   const id = esc(p.id);
-  return `<div class="crumb"><button data-act="back">← ${esc(listById(state.view)?.name ?? 'All')}</button>
+  const trail = ancestorsOf(p).map(a => ` / <button data-act="open" data-id="${esc(a.id)}">${esc(a.title)}</button>`).join('');   // D41
+  return `<div class="crumb"><span><button data-act="back">← ${esc(listById(state.view)?.name ?? 'All')}</button>${trail}</span>
       <button data-act="edit" data-id="${id}">Edit</button></div>
     <div class="task p${p.prio}${p.done ? ' done' : ''}">
       <button class="check" role="checkbox" aria-checked="${p.done}" aria-label="${esc(p.title)}" data-act="toggle" data-id="${id}"></button>
@@ -692,10 +724,14 @@ function ticksFor(min, max) {   // about six dates to label the timeline: days, 
 
 function ganttHTML(project) {   // the project's dated subtasks on a timeline, one bar each in its priority's color (D38)
   const subs = subtasksOf(project.id);
-  const spanOf = t => t.start || t.end ? { t, from: dayOf(t.start ?? t.end), to: dayOf(t.end ?? t.start) } : null;
+  const datesOf = t => t.start || t.end ? [dayOf(t.start ?? t.end), dayOf(t.end ?? t.start)] : null;
+  const spanOf = t => {   // a sub-project without dates of its own spans the dated things inside it (D41)
+    const inner = datesOf(t) ? [datesOf(t)] : t.project ? descendantsOf(t.id).map(datesOf).filter(Boolean) : [];
+    return inner.length ? { t, from: Math.min(...inner.map(d => d[0])), to: Math.max(...inner.map(d => d[1])) } : null;
+  };
   const rows = subs.map(spanOf).filter(Boolean).sort((a, b) => a.from - b.from || a.to - b.to);
   if (!rows.length) return '';
-  const whole = spanOf(project), all = whole ? [whole, ...rows] : rows;
+  const whole = datesOf(project) && spanOf(project), all = whole ? [whole, ...rows] : rows;
   const min = Math.min(...all.map(r => r.from)), max = Math.max(min + 7, ...all.map(r => r.to + 1));
   const pct = day => `${((day - min) / (max - min) * 100).toFixed(2)}%`;
   const now = new Date(), today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / DAY, showToday = today >= min && today < max;
@@ -703,8 +739,9 @@ function ganttHTML(project) {   // the project's dated subtasks on a timeline, o
   const legend = [...(prios.length > 1 ? prios.map(id => `<span style="--c:${prioColor(id)}">${PRIOS[id - 1].label}</span>`) : []),
                   ...(showToday ? ['<span class="today">Today</span>'] : [])];
   const label = max - min > 120 ? { month: 'short' } : { day: 'numeric', month: 'short' };
-  const cls = r => r === whole ? ' whole' : r.t.done ? ' done' : '';
-  const hint = r => `${esc(r.t.title)}: ${esc(datesText(r.t))}`;
+  const cls = r => r === whole ? ' whole' : `${r.t.project ? ' sub' : ''}${r.t.done ? ' done' : ''}`;
+  const day = d => fmtDay(d, { day: 'numeric', month: 'short' });
+  const hint = r => `${esc(r.t.title)}: ${r.from === r.to ? day(r.from) : `${day(r.from)} – ${day(r.to)}`}`;
   return `<section class="gantt" aria-label="Timeline">
     ${legend.length ? `<div class="g-legend">${legend.join('')}</div>` : ''}
     <div class="g-body">
@@ -725,7 +762,11 @@ function pickersHTML(pick, target) {   // shared by the composer ('draft') and t
     data-list="${esc(l.id)}" aria-pressed="${pick.lists.includes(l.id)}">${esc(l.name)}</button>`).join('');
   const prios = PRIOS.map(p => `<button type="button" class="prio p${p.id}" style="--c:${prioColor(p.id)}" data-act="pickPrio" data-for="${target}"
     data-prio="${p.id}" aria-pressed="${pick.prio === p.id}"><span class="title">${p.label}</span></button>`).join('');
-  return `<div class="chips" role="group" aria-label="Lists">${lists}</div><div class="prios" role="group" aria-label="Priority">${prios}</div>`;
+  const kinds = target !== 'draft' ? '' : `<div class="segmented" role="group" aria-label="Add as">${[['Task', false], ['Project', true]]
+    .map(([label, project]) => `<button type="button" data-act="pickKind" data-for="draft" data-project="${project}"
+      aria-pressed="${pick.project === project}">${label}</button>`).join('')}</div>`;   // add a project straight away (D41)
+  return `<div class="chips" role="group" aria-label="Lists">${lists}</div>
+    <div class="pick-row"><div class="prios" role="group" aria-label="Priority">${prios}</div>${kinds}</div>`;
 }
 
 function renderPickers() {
@@ -745,7 +786,7 @@ function openEditor(id) {
   $('#edit-end').value = task.end ?? '';
   $('#edit-url').value = task.url ?? '';
   for (const field of ['#edit-price', '#edit-end', '#edit-url']) $(field).setCustomValidity('');
-  $('#make-project').hidden = task.project || Boolean(parentOf(task));  // one level: subtasks stay tasks
+  $('#make-project').hidden = task.project;   // subtasks too: they become sub-projects (D41)
   $('#edit-heading').textContent = task.project ? 'Edit project' : 'Edit task';
   renderPickers();
   $('#editor').showModal();
@@ -810,14 +851,20 @@ const explain = err => MESSAGES[err?.code] ?? `Something went wrong (${err?.code
 const clicks = {   // buttons say what they do with data-act="…"
   view: el => actions.setView(el.dataset.view),
   toggle: el => {   // show the tick first, then move the task (D24)
-    const ticking = el.getAttribute('aria-checked') !== 'true', open = subtasksOf(el.dataset.id).filter(t => !t.done).length;
-    if (ticking && open && !confirm(`Complete this project and its ${open} open subtask${open > 1 ? 's' : ''}?`)) return;
+    const ticking = el.getAttribute('aria-checked') !== 'true', open = descendantsOf(el.dataset.id).filter(t => !t.done).length;
+    if (ticking && open && !confirm(`Complete this project and the ${open} open item${open > 1 ? 's' : ''} in it?`)) return;
     el.setAttribute('aria-checked', ticking);
     setTimeout(() => actions.toggle(el.dataset.id), 350);
   },
   edit: el => openEditor(el.dataset.id),
   open: el => actions.openProject(el.dataset.id),
   back: () => actions.closeProject(),
+  show: el => actions.setShow(el.dataset.show),
+  pickKind: el => {   // add as a task or a project (D41)
+    state.draft.project = el.dataset.project === 'true';
+    for (const button of el.parentElement.children) button.setAttribute('aria-pressed', button === el);
+    keepTyping(el);
+  },
   expand: el => actions.expand(el.dataset.id),
   makeProject: () => { const { id } = state.editing; $('#editor').close(); actions.makeProject(id); },
   pickList: el => {
@@ -832,8 +879,8 @@ const clicks = {   // buttons say what they do with data-act="…"
     keepTyping(el);
   },
   deleteTask: () => {
-    const n = subtasksOf(state.editing.id).length;
-    if (!confirm(`Delete "${$('#edit-title').value}"${n ? ` and its ${n} subtask${n > 1 ? 's' : ''}` : ''}?`)) return;
+    const n = descendantsOf(state.editing.id).length;
+    if (!confirm(`Delete "${$('#edit-title').value}"${n ? ` and the ${n} item${n > 1 ? 's' : ''} in it` : ''}?`)) return;
     actions.remove(state.editing.id);
     $('#editor').close();
   },
@@ -925,7 +972,6 @@ $('#edit-form').addEventListener('submit', event => {
 function route() {   // #p=<id> in the URL opens that project's page (D32)
   let id = null;
   try { id = decodeURIComponent(location.hash.match(/^#p=(.+)$/)?.[1] ?? '') || null; } catch {}
-  if (!id) pushed = false;
   state.project = id;
   state.draft = freshDraft();
   render();

@@ -313,7 +313,7 @@ async def test_projects_and_prices(browser, url):
     subtask = find(await stored_tasks(page), 'Pack sunscreen')
     check('a subtask added on the project page belongs to it', subtask['parent'] == TRIP and subtask['lists'] == [], subtask)
     await page.click('#list .task:has-text("Pack sunscreen") .body')
-    check('a subtask cannot become a project (one level)', await page.is_hidden('#make-project') and await page.is_hidden('#edit-notes'))
+    check('a subtask can become a sub-project (D41)', await page.is_visible('#make-project') and await page.is_hidden('#edit-notes'))
     await page.click('#editor [data-act="close"]')
     await page.click('#project-head [data-act="edit"]')
     check('the project editor has a description', await page.is_visible('#edit-notes') and await page.is_hidden('#make-project'))
@@ -429,6 +429,73 @@ async def test_dates_colors_links(browser, url):
     check('dates, colors and links: no console errors', not page.errors, page.errors)
     await ctx.close()
 
+async def test_subprojects_and_filter(browser, url):
+    ctx, page = await context(browser, url, viewport={'width': 1280, 'height': 860})
+    await start_signed_in(page, SEED)
+    trip = '#list > .task:has-text("Plan Lisbon trip")'
+    key = lambda tasks, title: next(k for k, t in tasks.items() if t['title'] == title)
+
+    # ── Sub-projects (D41) ──
+    await page.click(f'{trip} .line .body'); await page.wait_for_timeout(150)
+    check('the list filter is hidden on a project page', await page.is_hidden('#show'))
+    await page.fill('#add-title', 'Book hotels'); await page.dispatch_event('#add-title', 'input')
+    await page.click('#add-opts [data-act="pickKind"][data-project="true"]'); await page.press('#add-title', 'Enter')
+    await page.wait_for_timeout(100)
+    tasks = await stored_tasks(page); hotels = key(tasks, 'Book hotels')
+    check('add a sub-project straight from a project page', tasks[hotels]['project'] is True and tasks[hotels]['parent'] == TRIP, tasks[hotels])
+    check('the choice goes back to Task after adding', await page.get_attribute('#add-opts [data-project="false"]', 'aria-pressed') == 'true')
+    await page.click('#list .task:has-text("Book hotels") .line .body'); await page.wait_for_timeout(150)
+    check('a sub-project has its own page, with the way back up', page.url.endswith(f'#p={hotels}')
+          and 'Plan Lisbon trip' in await page.inner_text('#project-head .crumb'))
+    await page.fill('#add-title', 'Compare Alfama hotels'); await page.dispatch_event('#add-title', 'input')
+    await page.fill('#add-start', day(3)); await page.fill('#add-end', day(6)); await page.press('#add-title', 'Enter')
+    await page.wait_for_timeout(100)
+    await add(page, 'Pay the deposit')
+    await page.click('#list .task:has-text("Pay the deposit") .body'); await page.click('#make-project'); await page.wait_for_timeout(150)
+    tasks = await stored_tasks(page); deposit = key(tasks, 'Pay the deposit')
+    check('a subtask of a sub-project can become a project too, at any depth', tasks[deposit]['project'] and tasks[deposit]['parent'] == hotels)
+    check('the trail shows every level', (await page.inner_text('#project-head .crumb')).count(' / ') == 2,
+          await page.inner_text('#project-head .crumb'))
+    await page.click('#project-head .crumb [data-act="open"] >> nth=0'); await page.wait_for_timeout(150)
+    check('tapping a level in the trail opens it', await page.inner_text('#project-head h1') == 'Plan Lisbon trip')
+    check('on the timeline a sub-project is one bar spanning the dates inside it',
+          await page.locator('.gantt .g-name.sub').all_inner_texts() == ['Book hotels'])
+    await page.click('#project-head [data-act="back"]'); await page.wait_for_timeout(200)
+    check('the back button returns to the list from any depth', await page.is_hidden('#project-head') and '#p=' not in page.url)
+    await page.click(f'{trip} .expand')
+    hotels_row = f'{trip} .subs > .task:has-text("Book hotels")'
+    await page.click(f'{hotels_row} .line .expand')
+    check('in a list, sub-projects expand level by level',
+          'Compare Alfama hotels' in await page.locator(f'{hotels_row} .subs .title').all_inner_texts())
+
+    # ── Show everything, only tasks or only projects (D42) ──
+    top = lambda: page.locator('#list > .task > .col > .line .title').all_inner_texts()
+    await page.click('#show [data-show="projects"]')
+    check('show only projects', await top() == ['Plan Lisbon trip'], await top())
+    check('tab counts follow the filter', await page.inner_text('[data-view="all"] .count') == '1')
+    await page.click('[data-view="work"]')
+    check('the filter applies to every list, with a clear empty message', 'No projects in Work.' in await page.inner_text('#list'))
+    await page.click('#show [data-show="tasks"]'); await page.reload(); await page.wait_for_timeout(250)
+    check('the filter is remembered on this device', await page.get_attribute('#show [data-show="tasks"]', 'aria-pressed') == 'true'
+          and len(await top()) == 3, await top())
+    await page.click('[data-view="all"]')
+    check('show only tasks', 'Plan Lisbon trip' not in await top() and 'Oat milk' in await top())
+    await page.click('#show [data-show="all"]')
+
+    await page.click(f'{trip} > .check'); await page.wait_for_timeout(500)
+    tasks = await stored_tasks(page)
+    inside = [t for k, t in tasks.items() if t.get('parent') in (TRIP, hotels, deposit)]
+    check('completing a project completes everything inside it, at every level', tasks[TRIP]['done'] and len(inside) >= 6
+          and all(t['done'] for t in inside), [(t['title'], t['done']) for t in inside])
+    await page.click('#done-summary')
+    await page.click('#done-list .task:has-text("Plan Lisbon trip") .body'); await page.wait_for_timeout(150)
+    await page.click('#project-head [data-act="edit"]'); await page.click('#edit-form [data-act="deleteTask"]'); await page.wait_for_timeout(150)
+    tasks = await stored_tasks(page)
+    check('deleting a project deletes everything inside it', not {TRIP, hotels, deposit} & set(tasks)
+          and not any(t.get('parent') in (TRIP, hotels, deposit) for t in tasks.values()))
+    check('sub-projects and filter: no console errors', not page.errors, page.errors)
+    await ctx.close()
+
 async def test_offline_first_run(browser, url):
     """A device's first run while offline must not write default lists over real ones (D10)."""
     ctx, page = await context(browser, url)
@@ -535,6 +602,7 @@ async def main():
             await test_flows(browser, url)
             await test_projects_and_prices(browser, url)
             await test_dates_colors_links(browser, url)
+            await test_subprojects_and_filter(browser, url)
             await test_offline_first_run(browser, url)
             await test_phone(browser, url)
             await test_real_sdk(browser, url)

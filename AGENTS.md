@@ -13,7 +13,7 @@ Every change must keep meeting all of them.
 5. As few dependencies as possible, and nothing tied to a subscription or account that could change and break the app (Claude included).
 6. No code for the owner: new lists, sections or anything similar are added with a button in the app, never by editing code or asking an LLM.
 
-Also: a task can be on several lists at once, and one priority scale is shared by all lists. A task can grow into a project with its own page, a description and subtasks. To buy collects everything with a price, from every list and project.
+Also: a task can be on several lists at once, and one priority scale is shared by all lists. A task can grow into a project with its own page, a description and subtasks, which can be projects too. To buy collects everything with a price, from every list and project.
 
 ## Before you change anything
 
