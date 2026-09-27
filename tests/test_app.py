@@ -18,6 +18,7 @@ NOW, HOUR = int(time.time() * 1000), 3600_000
 SETTINGS = 'users/UID123/settings/app'
 PALETTE = ['#3559a8', '#a0458a', '#23876a', '#c27414', '#6a55c8', '#b5473a', '#2a7d9a', '#6f7f24',
            '#d0604a', '#c2417a', '#8e44ad', '#3b7dd8', '#4f9a2e', '#b08a14', '#8a5a3c', '#5b6b7f']
+PRIO_COLORS = ['#b5473a', '#3b7dd8', '#b08a14']   # High, Normal, Low (D39)
 
 def task(title, lists, prio=2, age_h=1, done_h=None):
     return {'title': title, 'lists': lists, 'prio': prio, 'done': done_h is not None,
@@ -30,11 +31,13 @@ SEED = [task('Send Q3 report to Ana', ['work'], 1, 30), task('Book physio appoin
         task('Update expense sheet', ['work'], 3, 90), task('Finish chapter 4 of Dune', ['hobbies'], 3, 100),
         task('Stretch hamstrings', ['gym'], 3, 10), task('Batteries (AA)', ['buy'], 2, 30, done_h=2),
         task('Dish soap', ['buy'], 2, 40, done_h=26), dict(task('Protein powder', ['gym', 'buy'], 2, 8), price=2990)]
-TRIP = f'T{len(SEED)}'   # start_signed_in stores SEED[i] as T<i>; these are fields added later (D31)
-SEED += [dict(task('Plan Lisbon trip', ['hobbies'], 1, 6), project=True, notes='Long weekend in May.\nBudget about 600 €.'),
-         dict(task('Book flights', ['buy'], 1, 5), parent=TRIP, price=18900),
-         dict(task('Find a hotel near Alfama', [], 2, 4), parent=TRIP),
-         dict(task('Travel adapter', [], 2, 3, done_h=1), parent=TRIP, price=1250)]
+def day(offset): return time.strftime('%Y-%m-%d', time.localtime(time.time() + offset * 86400))   # a date near today
+TRIP = f'T{len(SEED)}'   # start_signed_in stores SEED[i] as T<i>; these are fields added later (D37)
+SEED += [dict(task('Plan Lisbon trip', ['hobbies'], 1, 6), project=True, notes='Long weekend in May.\nBudget about 600 €.',
+              start=day(-3), end=day(20), url='https://www.visitlisboa.com/en'),
+         dict(task('Book flights', ['buy'], 1, 5), parent=TRIP, price=18900, start=day(-2), end=day(1)),
+         dict(task('Find a hotel near Alfama', [], 2, 4), parent=TRIP, start=day(2), end=day(9)),
+         dict(task('Travel adapter', [], 3, 3, done_h=1), parent=TRIP, price=1250, end=day(-1))]
 def find(tasks, title): return next((t for t in tasks.values() if t['title'] == title), None)
 
 results = []
@@ -118,8 +121,9 @@ async def test_flows(browser, url):
     tasks = await stored_tasks(page)
     chalk = next(t for t in tasks.values() if t['title'] == 'Climbing chalk')
     check('overlap is one task with two lists (D8)', sorted(chalk['lists']) == ['buy', 'hobbies'], chalk)
-    check('task fields match D31', set(chalk) == {'title', 'lists', 'prio', 'done', 'created', 'doneAt', 'project', 'notes', 'parent', 'price'}
-          and (chalk['project'], chalk['notes'], chalk['parent'], chalk['price']) == (False, '', None, None), chalk)
+    check('task fields match D37', set(chalk) == {'title', 'lists', 'prio', 'done', 'created', 'doneAt', 'project', 'notes', 'parent',
+          'price', 'start', 'end', 'url'} and [chalk[k] for k in ('project', 'notes', 'parent', 'price', 'start', 'end', 'url')]
+          == [False, '', None, None, None, None, None], chalk)
     check('user text is escaped (D26)', await page.evaluate('window.__xss') is None
           and '<img src=x onerror="window.__xss=1">' in await titles(page))
     tabs = await page.evaluate("[...document.querySelectorAll('.tab')].map(t => t.innerText.replace(/\\s+/g, ''))")
@@ -182,7 +186,7 @@ async def test_flows(browser, url):
         swatches = await p.locator('#lists-rows li:nth-child(2) .colors button').count()
         check('tapping a dot opens a grid of every color (D35)', swatches == len(PALETTE), swatches)
         await p.click(f'#lists-rows li:nth-child(2) .colors [data-color="{PALETTE[11]}"]')
-        check('picking a color closes the grid', await p.locator('.colors').count() == 0)
+        check('picking a color closes the grid', await p.locator('#lists-rows .colors').count() == 0)
     await edit_lists(page, recolor)
     hobbies = next(l for l in await stored_lists(page) if l['id'] == 'hobbies')
     check('recolor a list', hobbies['color'] == PALETTE[11], hobbies)
@@ -237,7 +241,7 @@ async def test_flows(browser, url):
     check('done tasks older than 30 days are pruned (D13)', 'OLD' not in tasks and 'RECENT' in tasks)
     check('open list is remembered per device (D25)', await page.get_attribute('[data-view="gym"]', 'aria-current') == 'page')
     await page.click('[data-view="all"]')
-    check('partial documents render with defaults (D31)', 'Made in the console' in await titles(page))
+    check('partial documents render with defaults (D37)', 'Made in the console' in await titles(page))
     await page.screenshot(path=f'{SHOTS}/desktop.png')
     layout = await page.evaluate("""(() => { const side = document.querySelector('.side').getBoundingClientRect(),
       list = document.querySelector('#list').getBoundingClientRect(), foot = document.querySelector('.foot').getBoundingClientRect();
@@ -345,6 +349,86 @@ async def test_projects_and_prices(browser, url):
     check('projects and prices: no console errors', not page.errors, page.errors)
     await ctx.close()
 
+async def test_dates_colors_links(browser, url):
+    ctx, page = await context(browser, url, viewport={'width': 1280, 'height': 860})
+    await ctx.route('https://example.com/**', lambda r: r.fulfill(body='ok'))   # links open here, never on the real network
+    await start_signed_in(page, SEED)
+
+    # ── Priority colors (D39) ──
+    high = '#list .group:has([data-prio="1"])'
+    check('priority labels start in their default colors', PRIO_COLORS[0] in await page.get_attribute(high, 'style'))
+    await page.click(f'{high} .group-name')
+    check('tapping a priority label opens its color grid', await page.is_visible('#prio-editor')
+          and await page.locator('#prio-colors button').count() == len(PALETTE))
+    await page.click(f'#prio-colors [data-color="{PALETTE[9]}"]'); await page.wait_for_timeout(100)
+    colors = (await stored(page)).get(SETTINGS, {}).get('prioColors')
+    check('a new priority color is saved for every device, on the label and the picker', colors == [PALETTE[9], *PRIO_COLORS[1:]]
+          and PALETTE[9] in await page.get_attribute(high, 'style') and await page.is_hidden('#prio-editor')
+          and PALETTE[9] in await page.get_attribute('#add-opts [data-prio="1"]', 'style'), colors)
+    check('tasks themselves are not colored by priority', await page.locator('#list .task[style]').count() == 0)
+
+    # ── Dates (D38) ──
+    await page.click('[data-view="work"]')
+    await page.fill('#add-title', 'Quarterly review'); await page.dispatch_event('#add-title', 'input')
+    await page.fill('#add-start', day(5)); await page.fill('#add-end', day(3)); await page.press('#add-title', 'Enter')
+    await page.wait_for_timeout(100)
+    message = await page.eval_on_selector('#add-end', 'e => e.validationMessage')
+    check('an end before the start is refused, with a reason', find(await stored_tasks(page), 'Quarterly review') is None
+          and 'before the start' in message, message)
+    await page.fill('#add-end', day(8)); await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
+    review = find(await stored_tasks(page), 'Quarterly review')
+    check('start and end are stored as calendar dates', review and (review['start'], review['end']) == (day(5), day(8)), review)
+    row = '#list .task:has-text("Quarterly review")'
+    check('the row shows its dates', '–' in await page.inner_text(f'{row} .tags'))
+    await page.click(f'{row} .body')
+    check('the editor shows the dates', await page.input_value('#edit-start') == day(5))
+    await page.fill('#edit-start', ''); await page.click('#edit-form .btn-primary'); await page.wait_for_timeout(100)
+    review = find(await stored_tasks(page), 'Quarterly review')
+    check('an end without a start is a due date', review['start'] is None and review['end'] == day(8)
+          and 'Due' in await page.inner_text(f'{row} .tags'), review)
+
+    # ── Links (D40) ──
+    await page.click(f'{row} .body')
+    await page.fill('#edit-url', 'javascript:alert(1)'); await page.click('#edit-form .btn-primary'); await page.wait_for_timeout(100)
+    message = await page.eval_on_selector('#edit-url', 'e => e.validationMessage')
+    check('only web addresses are accepted as links', find(await stored_tasks(page), 'Quarterly review')['url'] is None
+          and 'web address' in message, message)
+    await page.fill('#edit-url', 'example.com/q3'); await page.click('#edit-form .btn-primary'); await page.wait_for_timeout(100)
+    link = f'{row} a.url'
+    check('a link typed without https:// gets it, and shows as the site name', find(await stored_tasks(page), 'Quarterly review')['url']
+          == 'https://example.com/q3' and await page.get_attribute(link, 'href') == 'https://example.com/q3'
+          and (await page.inner_text(link)).startswith('example.com'))
+    async with ctx.expect_page() as opened:
+        await page.click(link)
+    tab = await opened.value
+    check('clicking a link opens it in a new tab, not the editor', tab.url == 'https://example.com/q3' and await page.is_hidden('#editor'))
+    await tab.close()
+    await page.fill('#add-title', 'Read the style guide'); await page.dispatch_event('#add-title', 'input')
+    await page.fill('#add-url', 'https://example.com/style'); await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
+    check('add a link while adding a task', find(await stored_tasks(page), 'Read the style guide')['url'] == 'https://example.com/style')
+
+    # ── Project timeline (D38) ──
+    await page.click('[data-view="all"]')
+    await page.click('#list > .task:has-text("Plan Lisbon trip") .line .body'); await page.wait_for_timeout(150)
+    check('a project shows its link', await page.get_attribute('#project-head a.url', 'href') == 'https://www.visitlisboa.com/en')
+    names = await page.locator('.gantt .g-name').all_inner_texts()
+    check('the timeline lists the project, then its dated subtasks by start date',
+          names == ['Plan Lisbon trip', 'Book flights', 'Travel adapter', 'Find a hotel near Alfama'], names)
+    bars = await page.eval_on_selector_all('.gantt .g-bar', 'els => els.map(e => [parseFloat(e.style.left), parseFloat(e.style.width)])')
+    check('bars share one time axis, the project spanning it', bars[0] == [0, 100]
+          and [b[0] for b in bars[1:]] == sorted(b[0] for b in bars[1:]), bars)
+    check('bars take their priority\'s color', PALETTE[9] in await page.locator('.gantt .g-bar').nth(1).get_attribute('style'))
+    check('the timeline marks today, with a legend', await page.locator('.gantt i.today').count() == 1
+          and await page.locator('.g-legend span').all_inner_texts() == ['High', 'Normal', 'Low', 'Today'])
+    await page.screenshot(path=f'{SHOTS}/project-timeline.png')
+    await page.locator('.gantt .g-bar').nth(1).click()
+    check('clicking a bar opens that subtask', await page.input_value('#edit-title') == 'Book flights')
+    await page.click('#editor [data-act="close"]')
+    await add(page, 'Pack sunscreen')
+    check('subtasks without dates are counted under the timeline', '(1)' in await page.inner_text('.gantt .g-note'))
+    check('dates, colors and links: no console errors', not page.errors, page.errors)
+    await ctx.close()
+
 async def test_offline_first_run(browser, url):
     """A device's first run while offline must not write default lists over real ones (D10)."""
     ctx, page = await context(browser, url)
@@ -450,6 +534,7 @@ async def main():
             await test_setup_message(browser, url)
             await test_flows(browser, url)
             await test_projects_and_prices(browser, url)
+            await test_dates_colors_links(browser, url)
             await test_offline_first_run(browser, url)
             await test_phone(browser, url)
             await test_real_sdk(browser, url)

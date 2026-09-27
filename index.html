@@ -101,15 +101,22 @@ textarea.field { resize: vertical; }
 .composer:not(.typing) :is(.btn-add, .opts) { display: none; }
 .opts { grid-column: 1 / -1; display: grid; gap: .6rem; }
 .picks { display: grid; gap: .6rem; }
-.price { width: 9rem; justify-self: start; }
+.extras { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }   /* price and dates (D33, D38) */
+.price { width: 9rem; }
+.when { display: inline-flex; align-items: center; gap: .5rem; font-size: .88rem; color: var(--muted); }
+.when span { width: 2.6rem; }
+.when .field { width: auto; color: var(--ink); }
+.link-field { flex: 1 1 14rem; width: auto; }
 .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
 .chip { display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .6rem; border: 1px solid var(--line); border-radius: 4px;
         font-size: .88rem; color: var(--muted); }
 .chip[aria-pressed="true"] { color: var(--ink); border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
 .chip::before, .tag::before { content: ""; flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c); }
 .tag.in::before { content: "↳"; width: auto; height: auto; background: none; }   /* the project of a subtask shown on its own */
+.tag.date::before { display: none; }
 .prios { display: inline-flex; justify-self: start; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-.prio { padding: .3rem .85rem; font-size: .88rem; }
+.prio { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .85rem; font-size: .88rem; }
+.prio::before, .group-name::before { content: ""; flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c); }   /* D39 */
 .prio + .prio { border-left: 1px solid var(--line); }
 .prio[aria-pressed="true"] { background: var(--ink); color: var(--page); }
 .prio[aria-pressed="true"] .title { color: inherit; }
@@ -119,7 +126,8 @@ textarea.field { resize: vertical; }
 .p3 .title { color: var(--muted); }
 .group { display: flex; align-items: center; gap: .6rem; margin: 1.4rem 0 .1rem; font-size: .72rem; font-weight: 650;
          letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.group::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+.group::after { content: ""; flex: 1; border-top: 1px solid color-mix(in srgb, var(--c) 45%, var(--line)); }
+.group-name { display: inline-flex; align-items: center; gap: .45rem; letter-spacing: inherit; text-transform: inherit; }   /* tap to recolor (D39) */
 .group:first-child { margin-top: 0; }
 
 /* Tasks */
@@ -137,6 +145,9 @@ textarea.field { resize: vertical; }
 .line { display: flex; align-items: flex-start; gap: .75rem; }
 .body { flex: 1; min-width: 0; }
 .title { overflow-wrap: anywhere; }
+.url { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; line-height: 1.7;
+       color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }   /* D40 */
+.url:hover { color: var(--ink); }
 .aside { flex: none; font-size: .88rem; line-height: 1.65; color: var(--muted); font-variant-numeric: tabular-nums; }
 .expand { position: relative; flex: none; width: 1.4rem; height: 1.45rem; color: var(--muted); }
 .expand::before { content: ""; position: absolute; left: .47rem; top: .4rem; width: .4rem; height: .4rem; border: solid currentColor;
@@ -167,9 +178,33 @@ textarea.field { resize: vertical; }
 .project-head .check { margin-top: .4rem; }
 .notes { max-width: 48rem; margin: .75rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
+/* Project timeline: a Gantt chart of the dated subtasks, bars in their priority's color (D38) */
+.gantt { margin-top: 1.25rem; font-size: .85rem; }
+.g-legend { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-bottom: .4rem; font-size: .78rem; color: var(--muted); }
+.g-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+.g-legend span::before { content: ""; width: .6rem; height: .6rem; border-radius: 2px; background: var(--c); }
+.g-legend .today::before { width: 0; height: .8rem; border-left: 1px solid var(--ink); border-radius: 0; }
+.g-body { display: grid; grid-template-columns: clamp(6.5rem, 30%, 14rem) minmax(0, 1fr); column-gap: .75rem; }
+.g-names { padding-top: 1.4rem; }
+.g-name { display: block; width: 100%; height: 1.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.9rem; }
+.g-name.whole { font-weight: 650; }
+.g-name.done { color: var(--muted); text-decoration: line-through; }
+.g-plot { position: relative; overflow: hidden; }
+.g-axis { position: relative; height: 1.4rem; border-bottom: 1px solid var(--line); font-size: .72rem; color: var(--muted); }
+.g-axis span { position: absolute; top: 0; padding-left: .3rem; white-space: nowrap; line-height: 1.4rem; }
+.g-plot i { position: absolute; top: 1.4rem; bottom: 0; border-left: 1px solid var(--soft); }
+.g-plot i.today { border-color: var(--ink); opacity: .55; }
+.g-track { position: relative; height: 1.9rem; }
+.g-bar { position: absolute; top: .45rem; height: 1rem; min-width: 4px; border-radius: 4px; background: var(--c); }
+.g-bar.whole { top: .8rem; height: .3rem; border-radius: 2px; background: var(--ink); }
+.g-bar.done { opacity: .35; }
+.g-note { margin: .5rem 0 0; font-size: .78rem; color: var(--muted); }
+@media (max-width: 600px) { .g-axis span:nth-child(even) { visibility: hidden; } }
+
 /* Dialogs: task editor and lists editor */
 .editor { width: min(34rem, calc(100% - 2rem)); max-height: 84vh; margin: 10vh auto auto; padding: 1.25rem; overflow-y: auto;
           border: 1px solid var(--line); border-radius: 10px; background: var(--page); color: var(--ink); box-shadow: 0 12px 40px rgb(0 0 0 / .18); }
+.editor.narrow { width: min(24rem, calc(100% - 2rem)); }
 .editor::backdrop { background: rgb(15 20 26 / .45); }
 .editor form { display: grid; gap: .85rem; }
 .editor h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
@@ -224,7 +259,12 @@ textarea.field { resize: vertical; }
       <button class="btn btn-primary btn-add">Add</button>
       <div class="opts">
         <div id="add-opts" class="picks"></div>
-        <input id="add-price" class="field price" placeholder="Price in €" aria-label="Price in euros" inputmode="decimal" autocomplete="off" enterkeyhint="done" maxlength="12">
+        <div class="extras">
+          <input id="add-price" class="field price" placeholder="Price in €" aria-label="Price in euros" inputmode="decimal" autocomplete="off" enterkeyhint="done" maxlength="12">
+          <label class="when"><span>Start</span><input id="add-start" class="field" type="date"></label>
+          <label class="when"><span>End</span><input id="add-end" class="field" type="date"></label>
+          <input id="add-url" class="field link-field" inputmode="url" placeholder="Link (optional)" aria-label="Link" autocomplete="off" enterkeyhint="done" maxlength="2000">
+        </div>
       </div>
     </form>
     <ul id="list" class="list"></ul>
@@ -251,7 +291,12 @@ textarea.field { resize: vertical; }
     <input id="edit-title" class="field" aria-label="Task" autocomplete="off" maxlength="300" required>
     <textarea id="edit-notes" class="field" rows="4" placeholder="Description" aria-label="Description" maxlength="5000"></textarea>
     <div id="edit-opts" class="picks"></div>
-    <input id="edit-price" class="field price" placeholder="Price in €" aria-label="Price in euros" inputmode="decimal" autocomplete="off" maxlength="12">
+    <div class="extras">
+      <input id="edit-price" class="field price" placeholder="Price in €" aria-label="Price in euros" inputmode="decimal" autocomplete="off" maxlength="12">
+      <label class="when"><span>Start</span><input id="edit-start" class="field" type="date"></label>
+      <label class="when"><span>End</span><input id="edit-end" class="field" type="date"></label>
+    </div>
+    <input id="edit-url" class="field" inputmode="url" placeholder="Link (optional)" aria-label="Link" autocomplete="off" maxlength="2000">
     <button type="button" id="make-project" class="link" data-act="makeProject">Make it a project</button>
     <div class="actions">
       <button type="button" class="btn btn-danger" data-act="deleteTask">Delete</button>
@@ -274,6 +319,15 @@ textarea.field { resize: vertical; }
   </form>
 </dialog>
 
+<dialog id="prio-editor" class="editor narrow" aria-labelledby="prio-heading">
+  <form>
+    <h2 id="prio-heading"></h2>
+    <div id="prio-colors" class="colors" role="group" aria-label="Colors"></div>
+    <p class="hint">Used for its label in every list, its dot in the priority picker, and its bars in project timelines.</p>
+    <div class="actions"><button type="button" class="btn btn-plain" data-act="close">Cancel</button></div>
+  </form>
+</dialog>
+
 <div id="toast" class="toast" role="status" hidden></div>
 
 <script type="module">
@@ -289,7 +343,8 @@ const DEFAULT_LISTS = [
 const PALETTE = ['#3559a8', '#a0458a', '#23876a', '#c27414', '#6a55c8', '#b5473a', '#2a7d9a', '#6f7f24',   // list colors,
                  '#d0604a', '#c2417a', '#8e44ad', '#3b7dd8', '#4f9a2e', '#b08a14', '#8a5a3c', '#5b6b7f'];  // picked from a grid (D9, D35)
 const SHOPPING_LIST = 'buy';   // the To buy list: typing a price ticks it (D33)
-const PRIOS = [{ id: 1, label: 'High' }, { id: 2, label: 'Normal' }, { id: 3, label: 'Low' }];   // fixed levels (D12)
+const PRIOS = [{ id: 1, label: 'High', color: '#b5473a' }, { id: 2, label: 'Normal', color: '#3b7dd8' },   // fixed levels (D12);
+               { id: 3, label: 'Low', color: '#b08a14' }];   // default colors, changeable in the app (D39)
 const DEFAULT_PRIO = 2;
 const DONE_TTL_DAYS = 30;                                  // completed tasks are deleted after this (D13)
 const SDK = 'https://www.gstatic.com/firebasejs/12.19.0';  // Firebase JS SDK, pinned (D2)
@@ -371,24 +426,36 @@ const state = {
   editing: null,        // task editor: { id, lists, prio }
   listsDraft: null,     // lists editor: working copy of state.lists
   picking: null,        // lists editor: the row whose color grid is open (D35)
+  prioColors: PRIOS.map(p => p.color),   // from settings/app, synced (D39)
 };
-// Defaults for missing or malformed fields (D31). Colors must be #rrggbb because they go into style attributes (D26).
+// Defaults for missing or malformed fields (D37). Colors must be #rrggbb because they go into style attributes (D26).
+const isDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value);   // a calendar date, as <input type="date"> gives it
+const isColor = value => /^#[0-9a-f]{6}$/i.test(value);
 const toTask = raw => ({ title: '', done: false, created: 0, doneAt: null, project: false, notes: '', parent: null, ...raw,
                          lists: Array.isArray(raw.lists) ? raw.lists : [],
                          prio: PRIOS.some(p => p.id === raw.prio) ? raw.prio : DEFAULT_PRIO,
-                         price: Number.isInteger(raw.price) && raw.price >= 0 ? raw.price : null });
-const toList = raw => ({ id: String(raw.id), name: String(raw.name ?? ''),
-                         color: /^#[0-9a-f]{6}$/i.test(raw.color) ? raw.color : PALETTE[0] });
+                         price: Number.isInteger(raw.price) && raw.price >= 0 ? raw.price : null,
+                         start: isDay(raw.start) ? raw.start : null, end: isDay(raw.end) ? raw.end : null,
+                         url: typeof raw.url === 'string' && /^https?:\/\/\S+$/i.test(raw.url) ? raw.url : null });
+const toList = raw => ({ id: String(raw.id), name: String(raw.name ?? ''), color: isColor(raw.color) ? raw.color : PALETTE[0] });
+const prioColor = id => state.prioColors[id - 1];
 const listById = id => state.lists.find(list => list.id === id);
 const byId = id => state.index.get(id);
 // One level (D32): projects are never subtasks, and a subtask whose project is gone stands alone.
 const parentOf = task => { const parent = !task.project && task.parent && byId(task.parent); return parent?.project ? parent : null; };
 const subtasksOf = id => state.tasks.filter(t => parentOf(t)?.id === id);
 const shownProject = () => { const task = state.project && byId(state.project); return task?.project ? task : null; };
-// "4,50", "€4.50" or "4" → 450 (whole cents, D31); blank → null; anything else → NaN.
+// "4,50", "€4.50" or "4" → 450 (whole cents, D37); blank → null; anything else → NaN.
 const parsePrice = text => {
   const s = text.replace(/[€\s]/g, '').replace(',', '.');
   return !s ? null : /^\d+(\.\d{1,2})?$/.test(s) ? Math.round(Number(s) * 100) : NaN;
+};
+// "example.com/page" or "https://…" → a full http(s) address (D40); blank → null; anything else → false.
+const parseUrl = text => {
+  const s = text.trim(), typed = /^[a-z][a-z\d+.-]*:/i.test(s);
+  if (!s) return null;
+  try { const url = new URL(typed ? s : `https://${s}`); return /^https?:$/.test(url.protocol) && (typed || url.hostname.includes('.')) ? url.href : false; }
+  catch { return false; }
 };
 const freshDraft = () => ({ lists: state.project || state.view === 'all' ? [] : [state.view], prio: DEFAULT_PRIO });
 state.draft = freshDraft();
@@ -409,11 +476,11 @@ const actions = {
     history.replaceState(null, '', location.pathname + location.search);
     route();
   },
-  add(title, price) {
+  add(title, extras) {   // extras: { price, start, end, url }
     title = title.trim();
     if (!title) return false;
     store.add({ title, lists: state.draft.lists, prio: state.draft.prio, done: false, created: Date.now(), doneAt: null,
-                project: false, notes: '', parent: shownProject()?.id ?? null, price });
+                project: false, notes: '', parent: shownProject()?.id ?? null, ...extras });
     state.draft = freshDraft();
     return true;
   },
@@ -424,11 +491,16 @@ const actions = {
     const also = done ? subtasksOf(id).filter(t => !t.done) : [];
     store.patchMany([task, ...also].map(t => ({ id: t.id, done, doneAt })));
   },
-  save(id, { title, notes, lists, prio, price }) {
+  save(id, { title, notes, lists, prio, price, start, end, url }) {
     title = title.trim();
     if (!title) return false;
-    store.patch(id, { title, notes, lists, prio, price });
+    store.patch(id, { title, notes, lists, prio, price, start, end, url });
     return true;
+  },
+  setPrioColor(id, color) {   // D39
+    const prioColors = [...state.prioColors];
+    prioColors[id - 1] = color;
+    store.saveSettings({ prioColors });
   },
   makeProject(id) { store.patch(id, { project: true }); actions.openProject(id); },   // D32
   expand(id) {
@@ -504,6 +576,7 @@ function onSettings(settings, meta) {
     return;
   }
   state.lists = (Array.isArray(settings.lists) ? settings.lists : []).map(toList);
+  state.prioColors = PRIOS.map((p, i) => isColor(settings.prioColors?.[i]) ? settings.prioColors[i] : p.color);
   state.listsLoaded = true;
   if (state.view !== 'all' && !listById(state.view)) return actions.setView('all');   // its list was deleted (D25)
   render();
@@ -518,6 +591,14 @@ const onList = (task, view) => view === 'all' || task.lists.includes(view);
 const rowsOf = view => state.tasks.filter(t => onList(t, view) && !(parentOf(t) && onList(parentOf(t), view)));
 const byPriority = (a, b) => a.prio - b.prio || b.created - a.created;   // D12
 const euros = cents => (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'EUR' });
+const DAY = 864e5;
+const dayOf = iso => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / DAY;   // whole days since 1970, no time zones
+const fmtDay = (day, options) => new Date(day * DAY).toLocaleDateString(undefined, { timeZone: 'UTC', ...options });
+const shortDate = iso => fmtDay(dayOf(iso), { day: 'numeric', month: 'short',
+                                              ...(iso.slice(0, 4) !== String(new Date().getFullYear()) && { year: 'numeric' }) });
+const datesText = t => t.start && t.end ? (t.start === t.end ? shortDate(t.start) : `${shortDate(t.start)} – ${shortDate(t.end)}`)
+  : t.start ? `From ${shortDate(t.start)}` : `Due ${shortDate(t.end)}`;   // D38
+const hostOf = url => new URL(url).hostname.replace(/^www\./, '');
 
 function render() {
   $('#tabs').innerHTML = [{ id: 'all', name: 'All', color: 'var(--ink)' }, ...state.lists].map(list => {
@@ -550,9 +631,10 @@ function render() {
   $('#who').textContent = state.user?.email ? `Signed in as ${state.user.email}` : '';
 }
 
-const groupsHTML = tasks => PRIOS.map(p => {   // open tasks by priority, each group under a labelled line (D34)
+const groupsHTML = tasks => PRIOS.map(p => {   // open tasks by priority, each group under a labelled line (D34); tap it to recolor (D39)
   const group = tasks.filter(t => t.prio === p.id);
-  return group.length ? `<li class="group">${p.label}</li>${group.map(t => taskHTML(t)).join('')}` : '';
+  return group.length ? `<li class="group" style="--c:${prioColor(p.id)}"><button class="group-name" data-act="prioColor" data-prio="${p.id}"
+    title="Change the color of ${p.label}">${p.label}</button></li>${group.map(t => taskHTML(t)).join('')}` : '';
 }).join('');
 
 function taskHTML(t, nested = false) {   // nested: a subtask shown under its project
@@ -565,7 +647,7 @@ function taskHTML(t, nested = false) {   // nested: a subtask shown under its pr
     <div class="col">
       <div class="line">
         <button class="body" data-act="${t.project ? 'open' : 'edit'}" data-id="${id}"><span class="title">${esc(t.title)}</span>${tagsHTML(t, nested)}</button>
-        ${aside && `<span class="aside">${aside}</span>`}
+        ${t.url ? linkHTML(t.url) : ''}${aside && `<span class="aside">${aside}</span>`}
         ${!t.done && open.length ? `<button class="expand" data-act="expand" data-id="${id}" aria-expanded="${expanded}" aria-label="Subtasks of ${esc(t.title)}"></button>` : ''}
       </div>
       ${expanded ? `<ul class="subs">${open.map(s => taskHTML(s, true)).join('')}</ul>` : ''}
@@ -578,6 +660,7 @@ function tagsHTML(t, nested = false) {   // the *other* lists it's on (D22); for
   const tags = t.lists.filter(id => page || id !== state.view).map(listById).filter(Boolean)
     .map(list => `<span class="tag" style="--c:${list.color}">${esc(list.name)}</span>`);
   if (parent) tags.unshift(`<span class="tag in">${esc(parent.title)}</span>`);
+  if (t.start || t.end) tags.push(`<span class="tag date">${datesText(t)}</span>`);
   return tags.length ? `<span class="tags">${tags.join('')}</span>` : '';
 }
 
@@ -589,13 +672,58 @@ function projectHeadHTML(p) {   // D32
       <button class="check" role="checkbox" aria-checked="${p.done}" aria-label="${esc(p.title)}" data-act="toggle" data-id="${id}"></button>
       <div class="col"><h1 class="title">${esc(p.title)}</h1>${tagsHTML(p)}</div>
     </div>
-    ${p.notes ? `<p class="notes">${esc(p.notes)}</p>` : ''}`;
+    ${p.notes ? `<p class="notes">${esc(p.notes)}</p>` : ''}${p.url ? `<p class="notes">${linkHTML(p.url)}</p>` : ''}${ganttHTML(p)}`;
+}
+
+// A task's web address, opened in a new tab (D40). Only http(s) addresses are ever stored, so no javascript: links.
+const linkHTML = url => `<a class="url" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(url)}">${esc(hostOf(url))} ↗</a>`;
+
+function ticksFor(min, max) {   // about six dates to label the timeline: days, weeks from Monday, or months
+  const span = max - min, out = [];
+  if (span <= 120) {
+    const step = [1, 2, 7, 14, 28].find(s => span / s <= 7) ?? 28;
+    for (let d = step < 7 ? min : min + (7 - (min + 3) % 7) % 7; d < max; d += step) out.push(d);
+  } else {
+    const first = new Date(min * DAY), every = Math.ceil(span / 30 / 7);
+    for (let m = first.getUTCMonth() + 1, d; (d = Date.UTC(first.getUTCFullYear(), m, 1) / DAY) < max; m += every) out.push(d);
+  }
+  return out;
+}
+
+function ganttHTML(project) {   // the project's dated subtasks on a timeline, one bar each in its priority's color (D38)
+  const subs = subtasksOf(project.id);
+  const spanOf = t => t.start || t.end ? { t, from: dayOf(t.start ?? t.end), to: dayOf(t.end ?? t.start) } : null;
+  const rows = subs.map(spanOf).filter(Boolean).sort((a, b) => a.from - b.from || a.to - b.to);
+  if (!rows.length) return '';
+  const whole = spanOf(project), all = whole ? [whole, ...rows] : rows;
+  const min = Math.min(...all.map(r => r.from)), max = Math.max(min + 7, ...all.map(r => r.to + 1));
+  const pct = day => `${((day - min) / (max - min) * 100).toFixed(2)}%`;
+  const now = new Date(), today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / DAY, showToday = today >= min && today < max;
+  const prios = [...new Set(rows.map(r => r.t.prio))].sort();
+  const legend = [...(prios.length > 1 ? prios.map(id => `<span style="--c:${prioColor(id)}">${PRIOS[id - 1].label}</span>`) : []),
+                  ...(showToday ? ['<span class="today">Today</span>'] : [])];
+  const label = max - min > 120 ? { month: 'short' } : { day: 'numeric', month: 'short' };
+  const cls = r => r === whole ? ' whole' : r.t.done ? ' done' : '';
+  const hint = r => `${esc(r.t.title)}: ${esc(datesText(r.t))}`;
+  return `<section class="gantt" aria-label="Timeline">
+    ${legend.length ? `<div class="g-legend">${legend.join('')}</div>` : ''}
+    <div class="g-body">
+      <div class="g-names">${all.map(r => `<button class="g-name${cls(r)}" data-act="edit" data-id="${esc(r.t.id)}" title="${hint(r)}">${esc(r.t.title)}</button>`).join('')}</div>
+      <div class="g-plot">
+        <div class="g-axis">${ticksFor(min, max).map(d => `<span style="left:${pct(d)}">${fmtDay(d, label)}</span>`).join('')}</div>
+        ${ticksFor(min, max).map(d => `<i style="left:${pct(d)}"></i>`).join('')}${showToday ? `<i class="today" style="left:${pct(today)}" title="Today"></i>` : ''}
+        ${all.map(r => `<div class="g-track"><button class="g-bar${cls(r)}" data-act="edit" data-id="${esc(r.t.id)}" tabindex="-1" aria-hidden="true"
+          style="left:${pct(r.from)};width:${pct(min + r.to + 1 - r.from)};--c:${prioColor(r.t.prio)}" title="${hint(r)}"></button></div>`).join('')}
+      </div>
+    </div>
+    ${rows.length < subs.length ? `<p class="g-note">Subtasks without dates aren't on the timeline (${subs.length - rows.length}).</p>` : ''}
+  </section>`;
 }
 
 function pickersHTML(pick, target) {   // shared by the composer ('draft') and the task editor ('editing')
   const lists = state.lists.map(l => `<button type="button" class="chip" style="--c:${l.color}" data-act="pickList" data-for="${target}"
     data-list="${esc(l.id)}" aria-pressed="${pick.lists.includes(l.id)}">${esc(l.name)}</button>`).join('');
-  const prios = PRIOS.map(p => `<button type="button" class="prio p${p.id}" data-act="pickPrio" data-for="${target}"
+  const prios = PRIOS.map(p => `<button type="button" class="prio p${p.id}" style="--c:${prioColor(p.id)}" data-act="pickPrio" data-for="${target}"
     data-prio="${p.id}" aria-pressed="${pick.prio === p.id}"><span class="title">${p.label}</span></button>`).join('');
   return `<div class="chips" role="group" aria-label="Lists">${lists}</div><div class="prios" role="group" aria-label="Priority">${prios}</div>`;
 }
@@ -613,7 +741,10 @@ function openEditor(id) {
   $('#edit-notes').value = task.notes;
   $('#edit-notes').hidden = !task.project;                            // only projects have a description (D32)
   $('#edit-price').value = task.price === null ? '' : (task.price / 100).toFixed(2);
-  $('#edit-price').setCustomValidity('');
+  $('#edit-start').value = task.start ?? '';
+  $('#edit-end').value = task.end ?? '';
+  $('#edit-url').value = task.url ?? '';
+  for (const field of ['#edit-price', '#edit-end', '#edit-url']) $(field).setCustomValidity('');
   $('#make-project').hidden = task.project || Boolean(parentOf(task));  // one level: subtasks stay tasks
   $('#edit-heading').textContent = task.project ? 'Edit project' : 'Edit task';
   renderPickers();
@@ -716,6 +847,15 @@ const clicks = {   // buttons say what they do with data-act="…"
     const row = $('#lists-rows').children[i];
     (row.querySelector('.colors [aria-pressed="true"]') ?? row.querySelector('.colors button') ?? row.querySelector('.swatch')).focus();
   },
+  prioColor: el => {   // a priority label opens its color grid (D39)
+    const id = Number(el.dataset.prio);
+    $('#prio-heading').textContent = `${PRIOS[id - 1].label} priority color`;
+    $('#prio-colors').innerHTML = PALETTE.map((color, n) => `<button type="button" style="--c:${color}" data-act="setPrioColor"
+      data-prio="${id}" data-color="${color}" aria-label="Color ${n + 1}" aria-pressed="${color === prioColor(id)}"></button>`).join('');
+    $('#prio-editor').showModal();
+    ($('#prio-colors [aria-pressed="true"]') ?? $('#prio-colors button')).focus();
+  },
+  setPrioColor: el => { actions.setPrioColor(Number(el.dataset.prio), el.dataset.color); $('#prio-editor').close(); },
   setColor: el => {
     const i = Number(el.dataset.i);
     state.listsDraft[i].color = el.dataset.color;
@@ -757,25 +897,30 @@ for (const [field, target] of [['#add-price', 'draft'], ['#edit-price', 'editing
     before = now;
   });
 }
-function readPrice(field) {   // cents, null for none, or undefined after telling the user it isn't a number
-  const price = parsePrice(field.value);
-  field.setCustomValidity(Number.isNaN(price) ? 'Write the price as a number, like 4.50' : '');
-  return field.reportValidity() ? price : undefined;
+for (const field of ['#add-end', '#add-url', '#edit-end', '#edit-url']) $(field).addEventListener('input', event => event.target.setCustomValidity(''));
+function readExtras(form) {   // price, dates and link of the composer ('add') or the editor ('edit'); undefined after showing what's wrong
+  const field = name => $(`#${form}-${name}`);
+  const extras = { price: parsePrice(field('price').value), start: field('start').value || null, end: field('end').value || null,
+                   url: parseUrl(field('url').value) };
+  field('price').setCustomValidity(Number.isNaN(extras.price) ? 'Write the price as a number, like 4.50' : '');
+  field('end').setCustomValidity(extras.start && extras.end && extras.end < extras.start ? 'The end is before the start' : '');
+  field('url').setCustomValidity(extras.url === false ? 'Write a web address, like example.com/page' : '');
+  return ['price', 'end', 'url'].every(name => field(name).reportValidity()) ? extras : undefined;
 }
 $('#add').addEventListener('submit', event => {
   event.preventDefault();
-  const price = readPrice($('#add-price'));
-  if (price === undefined || !actions.add($('#add-title').value, price)) return;
-  $('#add-title').value = $('#add-price').value = '';
+  const extras = readExtras('add');
+  if (!extras || !actions.add($('#add-title').value, extras)) return;
+  for (const name of ['title', 'price', 'start', 'end', 'url']) $(`#add-${name}`).value = '';
   $('#add').classList.remove('typing');
   renderPickers();
 });
 $('#edit-form').addEventListener('submit', event => {
   event.preventDefault();
-  const price = readPrice($('#edit-price'));
-  if (price === undefined) return;
+  const extras = readExtras('edit');
+  if (!extras) return;
   const { id, lists, prio } = state.editing;
-  if (actions.save(id, { title: $('#edit-title').value, notes: $('#edit-notes').value, lists, prio, price })) $('#editor').close();
+  if (actions.save(id, { title: $('#edit-title').value, notes: $('#edit-notes').value, lists, prio, ...extras })) $('#editor').close();
 });
 function route() {   // #p=<id> in the URL opens that project's page (D32)
   let id = null;

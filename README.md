@@ -53,9 +53,11 @@ Offline use: once a device has opened the app twice while online, it also opens 
 
 ## Everyday use
 
-- **Add a task** in the field at the top. It goes into the open list. To also put it on other lists, change its priority or give it a price, use the options below the field before adding. Each list shows its High, Normal and Low tasks in separate groups.
-- **Complete a task** by tapping its circle. Tap the text to edit it, change its lists, priority or price, or delete it.
+- **Add a task** in the field at the top. It goes into the open list. To also put it on other lists, change its priority, or give it a price, start and end dates or a link, use the options below the field before adding. Each list shows its High, Normal and Low tasks in separate groups.
+- **Complete a task** by tapping its circle. Tap the text to edit it, change its lists, priority, price, dates or link, or delete it. A link shows as the site's name with ↗; tap it to open the page.
 - **Projects** are for things with several steps. Open a task and tap **Make it a project**. Tapping a project opens its own page, with a description (**Edit**) and its subtasks; add subtasks there. In a list, the arrow next to a project shows its open subtasks, and you can tick them off right there. Completing a project completes its subtasks; deleting it deletes them.
+- **Timeline**: give a project's subtasks start and end dates, and its page shows them as a Gantt chart, with a line for today. Tap a bar to edit that subtask.
+- **Priority colors**: tap **High**, **Normal** or **Low** above a group of tasks to pick its color. It colors those labels, the priority buttons and the timeline bars, on all your devices.
 - **Prices**: typing a price also puts the task on **To buy**, so everything you need to buy, from every list and project, ends up there. Each list shows the total of its open tasks with a price.
 - **Add a list** with the + after the lists (**New list** in the sidebar on a computer). The same screen renames lists (edit the name), recolors them (tap the dot, then a color), reorders them (arrows) and deletes them (×). Deleting a list never deletes its tasks. To buy can't be deleted, because it collects everything with a price.
 - **Done** keeps completed tasks for 30 days, then deletes them.
