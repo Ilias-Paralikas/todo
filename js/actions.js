@@ -1,21 +1,24 @@
 // Every change to the data goes through here. The screen updates only from snapshots, our own writes
 // included (D15): action → store → snapshot → render(). A few actions change only this device's view.
 import { DONE_TTL_DAYS } from './config.js';
-import { moved } from './format.js';
+import { datesText, moved, today } from './format.js';
 import { fields, listFields } from './models.js';
+import { Repeat } from './repeat.js';
 import { closeProject, openProject } from './router.js';
 import { freshDraft, listById, local, pageProject, state } from './state.js';
 import { store } from './store.js';
-import { toast } from './views/dom.js';
+import { download, toast } from './views/dom.js';
 import { renderPickers } from './views/pickers.js';
 import { render } from './views/render.js';
 
-function create(title, data) {   // a new item; fields() fills in the rest (D37)
+function create(title, data) {   // a new item; fields() fills in the rest (D49)
   title = title.trim();
   if (!title) return false;
   store.add(fields({ ...data, title, created: Date.now() }));
   return true;
 }
+// A repeating item's dates go on its first occurrence, or today's when it has none (D50).
+const scheduled = values => values.repeat ? { ...values, ...new Repeat(values.repeat).align(values, today()) } : values;
 
 export const actions = {
   setView(view) {
@@ -37,25 +40,27 @@ export const actions = {
     local.set('expanded', JSON.stringify([...state.expanded].filter(kept => state.items.get(kept))));
     render();
   },
-  add(title, extras) {   // from the composer, into the open list or project. extras: { price, start, end, url }
+  add(title, extras) {   // from the composer, into the open list or project. extras: readFields() in views/fields.js
     const { lists, prio, project } = state.draft;
-    if (!create(title, { lists, prio, project, parent: pageProject()?.id ?? null, ...extras })) return false;
+    if (!create(title, { lists, prio, project, parent: pageProject()?.id ?? null, ...scheduled(extras) })) return false;
     state.draft = freshDraft();
     return true;
   },
   addTo(parent, title) { return create(title, { parent }); },   // from the field inside a sub-project (D44)
-  toggle(id) {   // completing a project completes everything open inside it (D32, D41)
+  toggle(id) {   // the item decides: done, or on to its next date if it repeats (models.js, D50)
     const item = state.items.get(id);
     if (!item) return;
-    const done = !item.done, doneAt = done ? Date.now() : null;
-    const also = done ? item.contents.filter(inner => !inner.done) : [];
-    store.patchMany([item, ...also].map(({ id }) => ({ id, done, doneAt })));
+    const patches = item.ticked();
+    store.patchMany(patches);
+    if (item.repeating && !item.done) toast(`Done. Next: ${datesText({ ...item, ...patches[0] })}`);
   },
-  save(id, { title, notes, lists, prio, price, start, end, url }) {
+  save(id, { title, notes, lists, prio, price, start, end, url, time, repeat }) {   // returns what was saved, or false
     title = title.trim();
     if (!title) return false;
-    store.patch(id, { title, notes, lists, prio, price, start, end, url });
-    return true;
+    const dates = scheduled({ start, end, repeat });
+    const saved = { title, notes, lists, prio, price, url, time, repeat: Repeat.fields(repeat), start: dates.start, end: dates.end };
+    store.patch(id, saved);
+    return saved;
   },
   makeProject(id) {   // a top-level task opens as a project page; a subtask becomes a sub-project, open in place (D41, D44)
     const item = state.items.get(id);
@@ -95,12 +100,7 @@ export const actions = {
   },
   backup() {   // D20. Items turn into exactly their stored fields (models.js).
     const data = { app: 'todo', exportedAt: new Date().toISOString(), lists: state.lists, tasks: state.items.all };
-    const link = Object.assign(document.createElement('a'), {
-      href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })),
-      download: `todo-backup-${data.exportedAt.slice(0, 10)}.json`,
-    });
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    download(`todo-backup-${data.exportedAt.slice(0, 10)}.json`, JSON.stringify(data, null, 1), 'application/json');
   },
   restore(data) {   // merge: adds missing lists, writes tasks by id, deletes nothing (D20)
     if (!state.listsLoaded) return toast('Your lists are still loading. Try again in a moment.');

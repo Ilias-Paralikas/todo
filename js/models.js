@@ -5,9 +5,10 @@
 //   Item ─┬─ Task ──── Subtask        Subtask and SubProject also share Nested:
 //         └─ Project ─ SubProject     what everything inside a project has in common.
 import { DEFAULT_PRIO, PALETTE, PRIOS } from './config.js';
-import { dayOf, euros, isColor, isDay } from './format.js';
+import { dayOf, euros, isColor, isDay, isTime, today } from './format.js';
+import { Repeat } from './repeat.js';
 
-// A stored item's fields, with defaults for missing or malformed ones (D37), so documents and backups from
+// A stored item's fields, with defaults for missing or malformed ones (D49), so documents and backups from
 // older versions, or typed into the console, still work. Exactly these fields are stored.
 const text = value => typeof value === 'string' ? value : '';
 export const fields = raw => ({
@@ -24,6 +25,9 @@ export const fields = raw => ({
   start: isDay(raw.start) ? raw.start : null,
   end: isDay(raw.end) ? raw.end : null,
   url: typeof raw.url === 'string' && /^https?:\/\/\S+$/i.test(raw.url) ? raw.url : null,
+  time: isTime(raw.time) ? raw.time : null,
+  repeat: Repeat.fields(raw.repeat),
+  lastDone: Number.isFinite(raw.lastDone) ? raw.lastDone : null,
 });
 // A list definition (D9). Its color goes into style attributes, so only #rrggbb (D26).
 export const listFields = raw => ({ id: String(raw.id), name: String(raw.name ?? ''), color: isColor(raw.color) ? raw.color : PALETTE[0] });
@@ -52,6 +56,17 @@ export class Item {
     return this.start || this.end ? { from: dayOf(this.start ?? this.end), to: dayOf(this.end ?? this.start) } : null;
   }
   get span() { return this.ownSpan; }                               // where it sits on a timeline
+  get repeating() { return this.repeat && new Repeat(this.repeat); }   // how it repeats, or null (D50)
+  // What ticking it changes, as patches for the store. Usually done, with everything open inside it (D32, D41);
+  // if it repeats, its next dates instead, with everything inside it open again (D50).
+  ticked(now = Date.now(), day = today()) {
+    if (this.repeating && !this.done) {
+      return [{ id: this.id, ...this.repeating.next(this, day), lastDone: now },
+              ...this.contents.filter(inner => inner.done).map(({ id }) => ({ id, done: false, doneAt: null }))];
+    }
+    const done = !this.done, doneAt = done ? now : null;
+    return [this, ...(done ? this.contents.filter(inner => !inner.done) : [])].map(({ id }) => ({ id, done, doneAt }));
+  }
   isOn(list) { return list === 'all' || this.lists.includes(list); }
   isRowIn(list) { return this.isOn(list); }                         // shown as a row of its own in that list
   matches(show) { return show === 'all' || show === `${this.kind}s`; }   // the Everything / Tasks / Projects filter (D42)

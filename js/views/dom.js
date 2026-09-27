@@ -5,6 +5,12 @@ export function show(screen) {   // 'boot', 'login' or 'main'
   for (const id of ['boot', 'login', 'main']) $(`#${id}`).hidden = id !== screen;
 }
 
+export function download(name, text, type) {   // hand the browser a file to save or open
+  const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([text], { type })), download: name });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
 let toastTimer;
 export function toast(message) {
   Object.assign($('#toast'), { textContent: message, hidden: false });

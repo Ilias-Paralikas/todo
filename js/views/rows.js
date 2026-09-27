@@ -1,6 +1,6 @@
 // Rows of tasks and projects, in priority groups. Each row asks its item what it does (models.js).
 import { PRIOS } from '../config.js';
-import { datesText, esc, hostOf } from '../format.js';
+import { datesText, esc, hostOf, lastDoneText } from '../format.js';
 import { listById, pageProject, prioColor, state } from '../state.js';
 
 // Open items by priority, each group under a labelled line (D34); tap the label to recolor it (D39).
@@ -42,13 +42,14 @@ function unfoldedHTML(item) {
   </div>`;
 }
 
-// The *other* lists it's on (D22); on its own in a list, the project it is in (D32); its dates (D38).
+// The *other* lists it's on (D22); on its own in a list, the project it is in (D32); its dates (D38) and repeat (D50).
 export function tagsHTML(item, inside = false) {
   const page = pageProject(), parent = !inside && !page && item.parentProject;
   const tags = item.lists.filter(id => page || id !== state.view).map(listById).filter(Boolean)
     .map(list => `<span class="tag" style="--c:${list.color}">${esc(list.name)}</span>`);
   if (parent) tags.unshift(`<span class="tag in">${esc(parent.title)}</span>`);
   if (item.start || item.end) tags.push(`<span class="tag date">${datesText(item)}</span>`);
+  if (item.repeating) tags.push(`<span class="tag repeat"${item.lastDone ? ` title="${lastDoneText(item.lastDone)}"` : ''}>↻ ${esc(item.repeating.text)}</span>`);   // D50
   return tags.length ? `<span class="tags">${tags.join('')}</span>` : '';
 }
 

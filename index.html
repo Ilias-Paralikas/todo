@@ -36,6 +36,8 @@
 <link rel="modulepreload" href="js/views/editors.js">
 <link rel="modulepreload" href="js/views/fields.js">
 <link rel="modulepreload" href="js/reorder.js">
+<link rel="modulepreload" href="js/repeat.js">
+<link rel="modulepreload" href="js/calendar.js">
 </head>
 <body>
 <p id="boot" class="boot">Loading…</p>
@@ -99,6 +101,11 @@
     <textarea id="edit-notes" class="field" rows="4" placeholder="Description" aria-label="Description" maxlength="5000"></textarea>
     <div id="edit-opts" class="picks"></div>
     <div class="fields" data-fields="edit"></div>
+    <div class="calendar">
+      <span>Alert: add it to</span>
+      <button type="button" class="link" data-act="calendar" data-to="google">Google Calendar</button>
+      <button type="button" class="link" data-act="calendar" data-to="file">another calendar (.ics)</button>
+    </div>
     <button type="button" id="make-project" class="link" data-act="makeProject">Make it a project</button>
     <div class="actions">
       <button type="button" class="btn btn-danger" data-act="deleteTask">Delete</button>

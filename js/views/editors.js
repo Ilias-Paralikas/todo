@@ -1,8 +1,9 @@
 // The dialogs: the item editor, the lists editor and the priority color grid.
 import { PALETTE, PRIOS, SHOPPING_LIST } from '../config.js';
-import { esc } from '../format.js';
+import { esc, lastDoneText } from '../format.js';
 import { prioColor, state } from '../state.js';
 import { $ } from './dom.js';
+import { fillFields } from './fields.js';
 import { renderPickers } from './pickers.js';
 
 export function openEditor(id) {
@@ -13,11 +14,9 @@ export function openEditor(id) {
   $('#edit-title').value = item.title;
   $('#edit-notes').value = item.notes;
   $('#edit-notes').hidden = !item.hasDescription;              // projects have a description (D32)
-  $('#edit-price').value = item.price === null ? '' : (item.price / 100).toFixed(2);
-  $('#edit-start').value = item.start ?? '';
-  $('#edit-end').value = item.end ?? '';
-  $('#edit-url').value = item.url ?? '';
-  for (const field of ['#edit-price', '#edit-end', '#edit-url']) $(field).setCustomValidity('');
+  fillFields('edit', item);
+  $('#edit-last').hidden = !(item.repeating && item.lastDone);   // D50
+  $('#edit-last').textContent = item.lastDone ? lastDoneText(item.lastDone) : '';
   $('#make-project').hidden = !item.canBecomeProject;          // tasks and subtasks (D41)
   renderPickers();
   $('#editor').showModal();

@@ -4,10 +4,21 @@
 .composer:not(.typing) :is(.btn-add, .opts) { display: none; }
 .opts { grid-column: 1 / -1; display: grid; gap: .6rem; }
 .picks { display: grid; gap: .6rem; }
-.fields { display: grid; gap: .6rem; }   /* start and end side by side, then price and link (D33, D38, D47) */
-.dates { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; max-width: 26rem; }
+.fields { display: grid; gap: .6rem; }   /* start and end side by side, then time and repeat, then price and link (D47) */
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; max-width: 26rem; }
 .when { display: grid; gap: .15rem; min-width: 0; font-size: .8rem; color: var(--muted); }
 .when .field { color: var(--ink); }
+.rhythm { display: grid; gap: .5rem; max-width: 26rem; }   /* how it repeats (D50) */
+.every { display: inline-flex; align-items: center; gap: .5rem; font-size: .88rem; color: var(--muted); }
+.every .field { width: 4.5rem; color: var(--ink); }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: .3rem; }
+.days label { position: relative; }
+.days input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.days span { display: block; padding: .3rem 0; border: 1px solid var(--line); border-radius: 4px; text-align: center; font-size: .82rem; color: var(--muted); }
+.days input:checked + span { border-color: var(--ink); background: var(--ink); color: var(--page); }
+.days input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+.calendar { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .9rem; font-size: .88rem; color: var(--muted); }   /* D51 */
+.calendar .link { font-size: .88rem; color: var(--ink); }
 .extras { display: flex; flex-wrap: wrap; gap: .5rem .75rem; }
 .price { width: 9rem; }
 .link-field { flex: 1 1 14rem; width: auto; }
@@ -17,7 +28,7 @@
 .chip[aria-pressed="true"] { color: var(--ink); border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
 .chip::before, .tag::before { content: ""; flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c); }
 .tag.in::before { content: "↳"; width: auto; height: auto; background: none; }   /* the project of a subtask shown on its own */
-.tag.date::before { display: none; }
+.tag:is(.date, .repeat)::before { display: none; }
 .pick-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
 .move { width: auto; padding: .3rem .6rem; font-size: .88rem; }   /* Move to (D45) */
 .prios, .segmented { display: inline-flex; justify-self: start; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }

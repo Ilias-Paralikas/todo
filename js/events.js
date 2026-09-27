@@ -1,13 +1,15 @@
 // Clicks and forms. Buttons say what they do with data-act="…"; each name is a handler in `clicks`.
 import { actions } from './actions.js';
 import { SHOPPING_LIST } from './config.js';
-import { moved, parsePrice, parseUrl } from './format.js';
+import { googleCalendarUrl, icsFile } from './calendar.js';
+import { moved } from './format.js';
 import { closeProject, openProject, route } from './router.js';
 import { listById, state } from './state.js';
 import { signOut } from './sync.js';
 import { store } from './store.js';
-import { $, explain, toast } from './views/dom.js';
+import { $, download, explain, toast } from './views/dom.js';
 import { addDraftList, openEditor, openListsEditor, openPrioEditor, renderListsEditor } from './views/editors.js';
+import { clearFields, readFields } from './views/fields.js';
 import { renderPickers } from './views/pickers.js';
 
 const insideOf = id => state.items.get(id)?.contents ?? [];
@@ -15,8 +17,9 @@ const insideOf = id => state.items.get(id)?.contents ?? [];
 const clicks = {
   view: el => actions.setView(el.dataset.view),
   toggleSide: () => actions.toggleSide(),
-  toggle: el => {   // show the tick first, then move the item (D24)
-    const ticking = el.getAttribute('aria-checked') !== 'true', open = insideOf(el.dataset.id).filter(item => !item.done).length;
+  toggle: el => {   // show the tick first, then move the item (D24). A repeating one just moves on, so no question (D50).
+    const ticking = el.getAttribute('aria-checked') !== 'true', repeats = state.items.get(el.dataset.id)?.repeating;
+    const open = repeats ? 0 : insideOf(el.dataset.id).filter(item => !item.done).length;
     if (ticking && open && !confirm(`Complete this project and the ${open} open item${open > 1 ? 's' : ''} in it?`)) return;
     el.setAttribute('aria-checked', ticking);
     setTimeout(() => actions.toggle(el.dataset.id), 350);
@@ -39,6 +42,15 @@ const clicks = {
   pickPrio: el => {
     state[el.dataset.for].prio = Number(el.dataset.prio);
     pressOnly(el);
+  },
+  calendar: el => {   // save, then add it to a calendar, which gives the alert (D51)
+    const saved = saveEditor();
+    if (!saved) return;
+    const item = { id: state.editing.id, ...saved };
+    if (!item.start && !item.end) return toast('Give it a date first, then add it to your calendar.');
+    if (el.dataset.to === 'google') window.open(googleCalendarUrl(item), '_blank', 'noopener');
+    else download(`${item.title.replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'task'}.ics`, icsFile(item), 'text/calendar');
+    $('#editor').close();
   },
   makeProject: () => { const { id } = state.editing; $('#editor').close(); actions.makeProject(id); },
   deleteTask: () => {
@@ -87,14 +99,11 @@ function pressOnly(el) {   // a one-of-several choice: press this button, releas
 // On a computer, put focus back in the new-task field so Enter still adds. (On a phone that would reopen the keyboard.)
 const keepTyping = el => { if (el.dataset.for === 'draft' && matchMedia('(pointer: fine)').matches) $('#add-title').focus(); };
 
-function readExtras(form) {   // price, dates and link of the composer ('add') or the editor ('edit'); undefined after showing what's wrong
-  const field = name => $(`#${form}-${name}`);
-  const extras = { price: parsePrice(field('price').value), start: field('start').value || null, end: field('end').value || null,
-                   url: parseUrl(field('url').value) };
-  field('price').setCustomValidity(Number.isNaN(extras.price) ? 'Write the price as a number, like 4.50' : '');
-  field('end').setCustomValidity(extras.start && extras.end && extras.end < extras.start ? 'The end is before the start' : '');
-  field('url').setCustomValidity(extras.url === false ? 'Write a web address, like example.com/page' : '');
-  return ['price', 'end', 'url'].every(name => field(name).reportValidity()) ? extras : undefined;
+function saveEditor() {   // what the editor saved, or false after showing what's wrong
+  const values = readFields('edit');
+  if (!values) return false;
+  const { id, lists, prio } = state.editing;
+  return actions.save(id, { title: $('#edit-title').value, notes: $('#edit-notes').value, lists, prio, ...values });
 }
 
 export function listen() {
@@ -108,9 +117,10 @@ export function listen() {
   $('#add-title').addEventListener('input', event => $('#add').classList.toggle('typing', event.target.value.trim() !== ''));
   $('#add').addEventListener('submit', event => {
     event.preventDefault();
-    const extras = readExtras('add');
+    const extras = readFields('add');
     if (!extras || !actions.add($('#add-title').value, extras)) return;
-    for (const name of ['title', 'price', 'start', 'end', 'url']) $(`#add-${name}`).value = '';
+    $('#add-title').value = '';
+    clearFields('add');
     $('#add').classList.remove('typing');
     renderPickers();
   });
@@ -123,13 +133,12 @@ export function listen() {
     if (!actions.addTo(form.dataset.parent, title)) input.value = title;
   });
 
-  // Prices, dates and links (composer and editor), then the item editor
+  // Prices (composer and editor), then the item editor
   for (const [field, target] of [['#add-price', 'draft'], ['#edit-price', 'editing']]) {
     let before = '';
     $(field).addEventListener('focus', event => { before = event.target.value.trim(); });
     $(field).addEventListener('input', event => {   // typing a price ticks To buy; untick it if you like (D33)
       const now = event.target.value.trim(), pick = state[target];
-      event.target.setCustomValidity('');
       if (!before && now && listById(SHOPPING_LIST) && !pick.lists.includes(SHOPPING_LIST)) {
         pick.lists = [...pick.lists, SHOPPING_LIST];
         renderPickers();
@@ -137,13 +146,9 @@ export function listen() {
       before = now;
     });
   }
-  for (const field of ['#add-end', '#add-url', '#edit-end', '#edit-url']) $(field).addEventListener('input', event => event.target.setCustomValidity(''));
   $('#edit-form').addEventListener('submit', event => {
     event.preventDefault();
-    const extras = readExtras('edit');
-    if (!extras) return;
-    const { id, lists, prio } = state.editing;
-    if (actions.save(id, { title: $('#edit-title').value, notes: $('#edit-notes').value, lists, prio, ...extras })) $('#editor').close();
+    if (saveEditor()) $('#editor').close();
   });
   $('#edit-opts').addEventListener('change', event => {   // Move to: every list but To buy is swapped for the one picked (D45)
     if (!event.target.matches('.move') || !event.target.value) return;

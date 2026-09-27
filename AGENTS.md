@@ -28,6 +28,7 @@ Also: a task can be on several lists at once, and one priority scale is shared b
   - `config.js` fixed settings: default lists, colors, priorities, the Firebase SDK version.
   - `format.js` pure helpers for text, prices, links and dates, including `esc()` (D26).
   - `models.js` the classes: `Item`, `Task` → `Subtask`, `Project` → `SubProject`, and `ItemSet`, which builds them from the database and knows how they nest.
+  - `repeat.js` the `Repeat` class: how an item repeats, its next date and its calendar rule. `calendar.js` Google Calendar links and .ics files (alerts).
   - `store.js` the only code that talks to Firebase.
   - `state.js` what the app knows right now. `actions.js` every change to the data. `sync.js` sign-in and the live snapshots.
   - `router.js` project pages in the address. `events.js` clicks and forms. `reorder.js` dragging lists into a new order. `main.js` start-up.
@@ -47,4 +48,4 @@ Also: a task can be on several lists at once, and one priority scale is shared b
 - Run `python3 tests/test_app.py` and add checks for new behaviour. It needs Python Playwright with Chromium, and npm for the real-SDK check.
 - Hand back only the files you changed, with one line each on what changed. The owner uploads them to GitHub.
 - If `firestore.rules` changed, tell the owner to paste it into Firebase console → Firestore Database → Rules and click Publish.
-- If the data model changes, old documents must keep working (defaults on read, see D37), and "Restore backup" must still read old backups.
+- If the data model changes, old documents must keep working (defaults on read, see D49), and "Restore backup" must still read old backups.

@@ -123,9 +123,9 @@ async def test_flows(browser, url):
     tasks = await stored_tasks(page)
     chalk = next(t for t in tasks.values() if t['title'] == 'Climbing chalk')
     check('overlap is one task with two lists (D8)', sorted(chalk['lists']) == ['buy', 'hobbies'], chalk)
-    check('task fields match D37', set(chalk) == {'title', 'lists', 'prio', 'done', 'created', 'doneAt', 'project', 'notes', 'parent',
-          'price', 'start', 'end', 'url'} and [chalk[k] for k in ('project', 'notes', 'parent', 'price', 'start', 'end', 'url')]
-          == [False, '', None, None, None, None, None], chalk)
+    check('task fields match D49', set(chalk) == {'title', 'lists', 'prio', 'done', 'created', 'doneAt', 'project', 'notes', 'parent',
+          'price', 'start', 'end', 'url', 'time', 'repeat', 'lastDone'} and [chalk[k] for k in ('project', 'notes', 'parent', 'price',
+          'start', 'end', 'url', 'time', 'repeat', 'lastDone')] == [False, '', None, None, None, None, None, None, None, None], chalk)
     check('user text is escaped (D26)', await page.evaluate('window.__xss') is None
           and '<img src=x onerror="window.__xss=1">' in await titles(page))
     tabs = await page.evaluate("[...document.querySelectorAll('.tab')].map(t => t.innerText.replace(/\\s+/g, ''))")
@@ -574,6 +574,85 @@ async def test_moving_and_layout(browser, url):
     check('moving and layout: no console errors', not page.errors, page.errors)
     await ctx.close()
 
+async def test_repeats_and_alerts(browser, url):
+    ctx, page = await context(browser, url, viewport={'width': 1280, 'height': 860})
+    await ctx.route('https://calendar.google.com/**', lambda r: r.fulfill(body='ok'))   # never the real site in tests
+    await start_signed_in(page, SEED)
+    from datetime import date, timedelta
+    import calendar as cal
+    from urllib.parse import urlparse, parse_qs
+    today = date.today()
+    first = next(today + timedelta(k) for k in range(7) if (today + timedelta(k)).weekday() in (0, 2, 4))
+    second = next(first + timedelta(k) for k in range(1, 8) if (first + timedelta(k)).weekday() in (0, 2, 4))
+    workout = lambda: find(stored_tasks_now, 'Workout')
+
+    # ── Repeating tasks (D50) ──
+    await page.click('[data-view="gym"]')
+    await page.fill('#add-title', 'Workout'); await page.dispatch_event('#add-title', 'input')
+    await page.fill('#add-time', '18:00'); await page.select_option('#add-repeat', 'week')
+    check('weekly shows every n weeks and the weekdays', await page.is_visible('#add-days') and await page.inner_text('#add-unit') == 'week')
+    for d in (0, 2, 4): await page.click(f'#add-days input[value="{d}"]')
+    await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
+    stored_tasks_now = await stored_tasks(page)
+    check('a repeating task is stored with its rule and time, dated to its first day', workout()['repeat'] == {'every': 1, 'unit': 'week', 'days': [0, 2, 4]}
+          and workout()['time'] == '18:00' and workout()['end'] == first.isoformat() and workout()['start'] is None, workout())
+    check('the composer is empty again after adding', await page.input_value('#add-time') == '' and await page.is_hidden('#add-rhythm'))
+    row = '#list .task:has-text("Workout")'
+    tags = await page.inner_text(f'{row} .tags')
+    check('its row shows the repeat and the time', '↻ Mon, Wed, Fri' in tags and '18:00' in tags, tags)
+    await page.click(f'{row} .check'); await page.wait_for_timeout(500)
+    stored_tasks_now = await stored_tasks(page)
+    check('ticking it moves it to its next day and keeps it open', workout()['done'] is False and workout()['end'] == second.isoformat()
+          and workout()['lastDone'] and 'Next' in await page.inner_text('#toast') and 'Workout' in await titles(page), workout())
+    await page.click(f'{row} .body')
+    check('the editor shows the rule and when it was last done', await page.input_value('#edit-repeat') == 'week'
+          and await page.is_checked('#edit-days input[value="2"]') and 'Last done' in await page.inner_text('#edit-last'))
+    await page.screenshot(path=f'{SHOTS}/editor-repeat.png')
+
+    # ── Alerts through the calendar (D51) ──
+    async with ctx.expect_page() as opened:
+        await page.click('#editor [data-act="calendar"][data-to="google"]')
+    tab = await opened.value
+    query = {k: v[0] for k, v in parse_qs(urlparse(tab.url).query).items()}
+    day_ = second.strftime('%Y%m%d')
+    check('Google Calendar opens with the event, its time and its repeat rule', tab.url.startswith('https://calendar.google.com/')
+          and query.get('text') == 'Workout' and query.get('dates') == f'{day_}T180000/{day_}T190000'
+          and query.get('recur') == 'RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR' and await page.is_hidden('#editor'), query)
+    await tab.close()
+    await page.click(f'{row} .body')
+    async with page.expect_download() as info:
+        await page.click('#editor [data-act="calendar"][data-to="file"]')
+    ics = open(await (await info.value).path(), encoding='utf-8', newline='').read()
+    check('the .ics file has the event, the repeat rule and an alarm at its time', (await info.value).suggested_filename == 'Workout.ics'
+          and f'DTSTART:{day_}T180000' in ics and 'RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR' in ics and 'SUMMARY:Workout' in ics
+          and 'BEGIN:VALARM' in ics and 'TRIGGER:PT0M' in ics and '\r\n' in ics, ics)
+    await page.click('[data-view="buy"]')
+    await page.click('#list .task:has-text("Oat milk") .body')
+    await page.click('#editor [data-act="calendar"][data-to="google"]'); await page.wait_for_timeout(100)
+    check('an item without a date asks for one first, in the editor', 'date first' in await page.inner_text('#toast')
+          and len(ctx.pages) == 1 and await page.is_visible('#editor'))
+    await page.click('#editor [data-act="close"]')
+    await page.fill('#add-title', 'Call the bank'); await page.dispatch_event('#add-title', 'input')
+    await page.fill('#add-time', '09:30'); await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
+    message = await page.eval_on_selector('#add-time', 'e => e.validationMessage')
+    check('a time needs a date', find(await stored_tasks(page), 'Call the bank') is None and 'date' in message, message)
+    await page.fill('#add-time', ''); await page.fill('#add-title', ''); await page.dispatch_event('#add-title', 'input')
+
+    # ── A repeating project starts over (D50) ──
+    await page.click('[data-view="all"]')
+    await page.click('#list > .task:has-text("Plan Lisbon trip") .line .body'); await page.wait_for_timeout(150)
+    await page.click('#project-head [data-act="edit"]'); await page.select_option('#edit-repeat', 'month')
+    await page.click('#edit-form .btn-primary'); await page.wait_for_timeout(100)
+    await page.click('#project-head .check'); await page.wait_for_timeout(500)
+    tasks = await stored_tasks(page)
+    end = date.fromisoformat(day(20)); month = end.month % 12 + 1; year = end.year + (end.month == 12)
+    next_end = date(year, month, min(end.day, cal.monthrange(year, month)[1]))
+    check('ticking a repeating project moves it on a month and reopens its items', not tasks[TRIP]['done']
+          and tasks[TRIP]['end'] == next_end.isoformat() and not any(t['done'] for t in tasks.values() if t.get('parent') == TRIP),
+          (tasks[TRIP]['end'], next_end))
+    check('repeats and alerts: no console errors', not page.errors, page.errors)
+    await ctx.close()
+
 async def test_models(browser, url):
     """The classes in js/models.js (D43), and the file layout, checked directly."""
     ctx, page = await context(browser, url)
@@ -591,8 +670,21 @@ async def test_models(browser, url):
     check('tapping does what each class says: edit, edit, page, in place', result['opens'] == ['edit', 'edit', 'open', 'expand'], result['opens'])
     check('a project contains everything at every level; a subtask on its own list is a row', result['inside'] == ['s', 'u']
           and result['rows'] == ['u'], result)
-    check('an item turns into exactly its stored fields (backups, D37)', result['stored'] == sorted(['id', 'title', 'lists', 'prio', 'done',
-          'created', 'doneAt', 'project', 'notes', 'parent', 'price', 'start', 'end', 'url']), result['stored'])
+    check('an item turns into exactly its stored fields (backups, D49)', result['stored'] == sorted(['id', 'title', 'lists', 'prio', 'done',
+          'created', 'doneAt', 'project', 'notes', 'parent', 'price', 'start', 'end', 'url', 'time', 'repeat', 'lastDone']), result['stored'])
+    rules = await page.evaluate("""async () => {
+      const { Repeat } = await import('./js/repeat.js'), { dayOf, isoOf } = await import('./js/format.js');
+      const d = dayOf, weekly = new Repeat({ unit: 'week', every: 1, days: [0, 2, 4] });   // Mon, Wed, Fri; 28 Sept 2026 is a Monday
+      return [isoOf(weekly.after(d('2026-09-28'), d('2026-09-28'))), isoOf(weekly.after(d('2026-09-28'), d('2026-10-01'))),
+              isoOf(new Repeat({ unit: 'week', every: 2, days: [1] }).after(d('2026-09-29'), d('2026-09-29'))),
+              isoOf(new Repeat({ unit: 'day', every: 3 }).after(d('2026-09-28'), d('2026-10-02'))),
+              isoOf(new Repeat({ unit: 'month', every: 1 }).after(d('2026-01-31'), d('2026-01-31'))),
+              isoOf(weekly.first(d('2026-09-29'))), weekly.text, new Repeat({ unit: 'week', every: 2, days: [1] }).text,
+              weekly.rule(d('2026-09-28')), Repeat.fields({ unit: 'hourly' }), Repeat.fields({ unit: 'week', every: 500, days: [9, 2, 2] })]; }""")
+    check('repeat rules: next weekday, late catch-up, every 2 weeks, every 3 days, end of month (D50)', rules[:6] == ['2026-09-30',
+          '2026-10-02', '2026-10-13', '2026-10-04', '2026-02-28', '2026-09-30'], rules[:6])
+    check('repeat rules: wording, calendar rule and clean-up', rules[6:] == ['Mon, Wed, Fri', 'Every 2 weeks: Tue',
+          'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR', None, {'every': 1, 'unit': 'week', 'days': [2]}], rules[6:])
     check('classes: no console errors', not page.errors, page.errors)
     await ctx.close()
     shell = set(re.findall(r"'([^']+)'", re.search(r'SHELL = \[(.*?)\];', read('sw.js'), re.S).group(1)))
@@ -728,6 +820,7 @@ async def main():
             await test_dates_colors_links(browser, url)
             await test_subprojects_and_filter(browser, url)
             await test_moving_and_layout(browser, url)
+            await test_repeats_and_alerts(browser, url)
             await test_models(browser, url)
             await test_offline_first_run(browser, url)
             await test_phone(browser, url)

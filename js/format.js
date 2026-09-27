@@ -24,10 +24,18 @@ export const hostOf = url => new URL(url).hostname.replace(/^www\./, '');
 
 // Dates are whole days since 1970, so they mean the same day in every time zone (D37).
 export const DAY = 864e5;
+export const isTime = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);   // a time of day, as <input type="time"> gives it
 export const dayOf = iso => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / DAY;
+export const isoOf = day => new Date(day * DAY).toISOString().slice(0, 10);
 export const today = () => { const now = new Date(); return Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / DAY; };
 export const fmtDay = (day, options) => new Date(day * DAY).toLocaleDateString(undefined, { timeZone: 'UTC', ...options });
+export const weekdayName = (i, style = 'short') => fmtDay(4 + i, { weekday: style });   // 0 = Monday, as 5 January 1970 was
+export const lastDoneText = ms => `Last done ${new Date(ms).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`;   // D50
 const shortDate = iso => fmtDay(dayOf(iso), { day: 'numeric', month: 'short',
                                               ...(iso.slice(0, 4) !== String(new Date().getFullYear()) && { year: 'numeric' }) });
-export const datesText = ({ start, end }) => start && end ? (start === end ? shortDate(start) : `${shortDate(start)} – ${shortDate(end)}`)
-  : start ? `From ${shortDate(start)}` : `Due ${shortDate(end)}`;   // D38
+// "3 Oct – 10 Oct", "From 3 Oct", "Due 10 Oct" (D38). A time goes with the first date: "Due 10 Oct, 18:00" (D49).
+export const datesText = ({ start, end, time }) => {
+  const at = time ? `, ${time}` : '';
+  return start && end ? (start === end ? `${shortDate(start)}${at}` : `${shortDate(start)}${at} – ${shortDate(end)}`)
+    : start ? `From ${shortDate(start)}${at}` : `Due ${shortDate(end)}${at}`;
+};
