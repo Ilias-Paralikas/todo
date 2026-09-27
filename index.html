@@ -1,0 +1,618 @@
+<!doctype html>
+<!-- Todo. Read DECISIONS.md before changing this file, and update it in the same commit. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10161d" media="(prefers-color-scheme: dark)">
+<title>Todo</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preload" href="fonts/AtkinsonHyperlegibleNext.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("fonts/AtkinsonHyperlegibleNext.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+:root {
+  color-scheme: light dark;
+  --page: #f3f5f7;  --field: #ffffff;  --ink: #1b2433;  --muted: #687384;
+  --line: #dce1e7;  --mark: #ffe45c;   --danger: #b3261e;
+  --font: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #10161d;  --field: #18212b;  --ink: #e8ecf1;  --muted: #8f9aa9;
+    --line: #2a3542;  --mark: #5e4f10;   --danger: #ff8a80;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 420 17px/1.45 var(--font);
+  -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
+}
+button, input { font: inherit; color: inherit; }
+button { background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
+button:disabled { cursor: default; opacity: .3; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
+.page {
+  max-width: 38rem; margin: 0 auto;
+  padding: max(1rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+           max(2rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+}
+
+/* Priority is type weight; High also gets a highlighter mark (DECISIONS D21). */
+.p1 .title { font-weight: 660; background: linear-gradient(transparent 42%, var(--mark) 42% 92%, transparent 92%);
+             -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.p3 .title { font-weight: 280; color: var(--muted); }
+
+/* List tabs. They wrap rather than scroll, so every list stays in sight. */
+.tabs { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem 1.15rem; padding: .5rem 0 1rem; }
+.tab, .tab-add { font-size: 1.25rem; font-weight: 300; color: var(--muted); border-bottom: 3px solid transparent; }
+.tab[aria-current="page"] { font-weight: 760; color: var(--ink); border-color: var(--c); }
+.tab-name { display: inline-flex; flex-direction: column; align-items: center; }
+.tab-name::after { content: attr(data-text); font-weight: 760; height: 0; overflow: hidden; visibility: hidden; } /* reserve bold width: no jumping */
+.tab sup { margin-left: .1rem; font-size: .7rem; font-weight: 600; }
+.tab-add { position: relative; padding: 0 .35rem; }
+.tab-add::after { content: ""; position: absolute; inset: -.6rem -.4rem; } /* bigger touch target */
+.status { margin: -.5rem 0 .75rem; font-size: .88rem; color: var(--muted); }
+
+/* Fields and buttons */
+.field { width: 100%; min-width: 0; padding: .7rem .9rem; border: 1px solid var(--line); border-radius: 12px; background: var(--field); }
+.field:focus { outline: none; border-color: var(--ink); }
+.btn { padding: .65rem 1.1rem; border-radius: 12px; font-weight: 650; }
+.btn-primary { background: var(--ink); color: var(--page); }
+.btn-plain { color: var(--muted); }
+.btn-danger { padding-left: 0; color: var(--danger); }
+
+/* New-task composer and the list/priority pickers */
+.composer { display: grid; grid-template-columns: 1fr auto; gap: .6rem; margin-bottom: 1.1rem; }
+.composer:not(.typing) :is(.btn-add, .opts) { display: none; }
+.opts { grid-column: 1 / -1; display: grid; gap: .55rem; }
+.chips, .prios { display: flex; flex-wrap: wrap; gap: .45rem; }
+.chip, .prio { padding: .3rem .65rem; border: 1px solid var(--line); border-radius: 999px; font-size: .92rem; }
+.chip { display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); }
+.chip[aria-pressed="true"] { color: var(--ink); font-weight: 600; border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+.prio { border-color: transparent; }
+.prio[aria-pressed="true"] { border-color: var(--ink); }
+.chip::before, .tag::before { content: ""; flex: none; width: .55rem; height: .55rem; border-radius: 50%; background: var(--c); }
+
+/* Tasks */
+.list { list-style: none; margin: 0; padding: 0; }
+.task { display: flex; align-items: flex-start; gap: .85rem; padding: .5rem 0; }
+.check { position: relative; flex: none; width: 1.4rem; height: 1.4rem; margin-top: .1rem;
+         border: 2px solid var(--muted); border-radius: 50%; transition: background-color .15s, border-color .15s; }
+.check::after { content: ""; position: absolute; inset: -.65rem; } /* bigger touch target */
+.p1 .check { border-color: var(--ink); }
+.check[aria-checked="true"] { background: var(--muted); border-color: var(--muted); }
+.check[aria-checked="true"]::before { content: ""; position: absolute; left: .36rem; top: .14rem; width: .3rem; height: .62rem;
+         border: solid var(--page); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.body { flex: 1; min-width: 0; }
+.title { overflow-wrap: anywhere; }
+.tags { display: flex; flex-wrap: wrap; gap: .15rem .9rem; margin-top: .1rem; font-size: .8rem; color: var(--muted); }
+.tag { display: inline-flex; align-items: center; gap: .35rem; }
+.done .title { font-weight: 340; color: var(--muted); text-decoration: line-through; background: none; }
+.empty { padding: 1.25rem 0; color: var(--muted); }
+.done-box { margin-top: 1.5rem; }
+.done-box summary { display: flex; align-items: center; gap: .6rem; padding: .35rem 0; font-weight: 600; color: var(--muted); cursor: pointer; list-style: none; }
+.done-box summary::-webkit-details-marker { display: none; }
+.done-box summary::before { content: ""; width: .45rem; height: .45rem; border: solid currentColor; border-width: 0 2px 2px 0;
+         transform: rotate(-45deg); transition: transform .15s; }
+.done-box[open] summary::before { transform: rotate(45deg); }
+.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6rem 1.25rem; margin-top: 3rem; font-size: .85rem; color: var(--muted); }
+.foot-actions { display: flex; flex-wrap: wrap; gap: .6rem 1.25rem; }
+.foot button { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Dialogs: task editor and lists editor */
+.editor { width: min(34rem, calc(100% - 2rem)); max-height: 84vh; margin: 12vh auto auto; padding: 1.1rem; overflow-y: auto;
+          border: 1px solid var(--line); border-radius: 18px; background: var(--page); color: var(--ink); }
+.editor::backdrop { background: rgb(16 22 29 / .5); }
+.editor form { display: grid; gap: .9rem; }
+.editor h2 { margin: 0; font-size: 1.25rem; font-weight: 720; }
+.actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
+.actions .btn-danger { margin-right: auto; }
+.list-rows { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.list-row { display: flex; align-items: center; gap: .3rem; }
+.swatch { flex: none; width: 1.75rem; height: 1.75rem; margin-right: .25rem; border-radius: 50%; background: var(--c); }
+.icon-btn { flex: none; width: 2.1rem; height: 2.3rem; border-radius: 10px; font-size: 1.1rem; color: var(--muted); text-align: center; }
+.add-list { justify-self: start; padding: .2rem 0; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Sign-in, loading, messages */
+.login { display: grid; gap: .75rem; max-width: 22rem; margin: 18vh auto 0; }
+.login h1 { margin: 0; font-size: 2.6rem; font-weight: 780; line-height: 1.1; }
+.hint { margin: 0 0 .5rem; color: var(--muted); }
+.editor .hint { margin: 0; font-size: .88rem; }
+.error { min-height: 1.45em; margin: 0; color: var(--danger); }
+.boot { padding: 2rem 0; color: var(--muted); }
+.toast { position: fixed; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom)); transform: translateX(-50%);
+         width: max-content; max-width: calc(100% - 2rem); padding: .7rem 1rem; border-radius: 12px;
+         background: var(--ink); color: var(--page); font-size: .92rem; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <p id="boot" class="boot">Loading…</p>
+
+  <form id="login" class="login" hidden>
+    <h1>Todo</h1>
+    <p class="hint">Sign in with the account you created in Firebase.</p>
+    <input class="field" name="email" type="email" autocomplete="username" placeholder="Email" required>
+    <input class="field" name="password" type="password" autocomplete="current-password" placeholder="Password" required>
+    <button class="btn btn-primary">Sign in</button>
+    <p id="login-error" class="error" role="alert"></p>
+  </form>
+
+  <main id="main" hidden>
+    <nav id="tabs" class="tabs" aria-label="Lists"></nav>
+    <p id="status" class="status" role="status" hidden></p>
+    <form id="add" class="composer">
+      <input id="add-title" class="field" placeholder="Add a task" aria-label="New task" autocomplete="off" enterkeyhint="done" maxlength="300">
+      <button class="btn btn-primary btn-add">Add</button>
+      <div id="add-opts" class="opts"></div>
+    </form>
+    <ul id="list" class="list"></ul>
+    <details id="done-box" class="done-box" hidden>
+      <summary id="done-summary"></summary>
+      <ul id="done-list" class="list"></ul>
+    </details>
+    <footer class="foot">
+      <span id="who"></span>
+      <span class="foot-actions">
+        <button data-act="backup">Download backup</button>
+        <button data-act="restore">Restore backup</button>
+        <button data-act="signout">Sign out</button>
+      </span>
+      <input id="restore-file" type="file" accept=".json,application/json" hidden>
+    </footer>
+  </main>
+</div>
+
+<dialog id="editor" class="editor" aria-label="Edit task">
+  <form id="edit-form">
+    <input id="edit-title" class="field" aria-label="Task" autocomplete="off" maxlength="300" required>
+    <div id="edit-opts" class="opts"></div>
+    <div class="actions">
+      <button type="button" class="btn btn-danger" data-act="deleteTask">Delete</button>
+      <button type="button" class="btn btn-plain" data-act="close">Cancel</button>
+      <button class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="lists-editor" class="editor" aria-labelledby="lists-heading">
+  <form id="lists-form">
+    <h2 id="lists-heading">Lists</h2>
+    <ul id="lists-rows" class="list-rows"></ul>
+    <button type="button" class="add-list" data-act="addList">Add a list</button>
+    <p class="hint">Tap a dot to change its color. Deleting a list keeps its tasks in All.</p>
+    <div class="actions">
+      <button type="button" class="btn btn-plain" data-act="close">Cancel</button>
+      <button class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script type="module">
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+// Lists are data, not code: add, rename, recolor, reorder or delete them in the app with
+// the + after the tabs (D9). These are only the lists created at the very first sign-in (D10).
+const DEFAULT_LISTS = [
+  { id: 'work',    name: 'Work',    color: '#3559a8' },
+  { id: 'hobbies', name: 'Hobbies', color: '#a0458a' },
+  { id: 'gym',     name: 'Gym',     color: '#23876a' },
+  { id: 'buy',     name: 'To buy',  color: '#c27414' },
+];
+const PALETTE = ['#3559a8', '#a0458a', '#23876a', '#c27414', '#6a55c8', '#b5473a', '#2a7d9a', '#6f7f24'];   // list colors (D9)
+const PRIOS = [{ id: 1, label: 'High' }, { id: 2, label: 'Normal' }, { id: 3, label: 'Low' }];   // fixed levels (D12)
+const DEFAULT_PRIO = 2;
+const DONE_TTL_DAYS = 30;                                  // completed tasks are deleted after this (D13)
+const SDK = 'https://www.gstatic.com/firebasejs/12.19.0';  // Firebase JS SDK, pinned (D2)
+
+// ─── STORE: the only code that talks to Firebase ─────────────────────────────
+// To change backend, rewrite this section and keep the methods it returns.
+const appError = code => Object.assign(new Error(code), { code });
+const load = (url, code) => import(url).catch(() => { throw appError(code); });
+
+async function connectStore(onError) {
+  const { FIREBASE_CONFIG: config } = await load('./firebase-config.js', 'app/config-missing');
+  if (!config?.apiKey || config.apiKey.startsWith('PASTE')) throw appError('app/config-empty');
+  const [{ initializeApp }, A, F] = await Promise.all(
+    ['app', 'auth', 'firestore'].map(name => load(`${SDK}/firebase-${name}.js`, 'app/sdk-offline')));
+
+  const app = initializeApp(config);
+  const auth = A.getAuth(app);
+  const db = F.initializeFirestore(app, {   // on-device copy: reads work offline, writes queue (D16)
+    localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }),
+  });
+  let tasks = null, settings = null;   // users/{uid}/tasks and users/{uid}/settings/app (D6)
+  const ref = id => F.doc(tasks, id);
+  const write = promise => { promise.catch(onError); };   // never awaited (D14)
+  const inBatches = (items, add) => {   // a Firestore batch holds at most 500 writes
+    for (let i = 0; i < items.length; i += 400) {
+      const batch = F.writeBatch(db);
+      items.slice(i, i + 400).forEach(item => add(batch, item));
+      write(batch.commit());
+    }
+  };
+
+  return {
+    onUser: callback => A.onAuthStateChanged(auth, user => {
+      tasks = user && F.collection(db, 'users', user.uid, 'tasks');
+      settings = user && F.doc(db, 'users', user.uid, 'settings', 'app');
+      callback(user);
+    }),
+    signIn: (email, password) => A.signInWithEmailAndPassword(auth, email, password),
+    signOut: () => A.signOut(auth),
+    watch: (onTasks, onSettings, onFail) => {
+      const options = { includeMetadataChanges: true };
+      const stops = [
+        F.onSnapshot(tasks, options, snap => onTasks(snap.docs.map(d => ({ ...d.data(), id: d.id })), snap.metadata), onFail),
+        F.onSnapshot(settings, options, snap => onSettings(snap.exists() ? snap.data() : null, snap.metadata), onFail),
+      ];
+      return () => stops.forEach(stop => stop());
+    },
+    add: task => write(F.setDoc(F.doc(tasks), task)),
+    patch: (id, fields) => write(F.updateDoc(ref(id), fields)),
+    remove: id => write(F.deleteDoc(ref(id))),
+    removeMany: ids => inBatches(ids, (batch, id) => batch.delete(ref(id))),
+    putMany: items => inBatches(items, (batch, { id, ...task }) => batch.set(ref(id), task)),
+    saveSettings: fields => write(F.setDoc(settings, fields, { merge: true })),
+  };
+}
+
+// ─── STATE & ACTIONS ─────────────────────────────────────────────────────────
+// Data changes go through actions. The screen updates only from snapshots, our own
+// writes included (D15): action → store → snapshot → render().
+const local = {   // per-device settings, not synced (D25)
+  get: key => { try { return localStorage.getItem(key); } catch { return null; } },
+  set: (key, value) => { try { localStorage.setItem(key, value); } catch {} },
+};
+const state = {
+  user: null,
+  tasks: [],
+  lists: [],            // list definitions, in tab order (D9)
+  loaded: false,        // first task snapshot has arrived
+  listsLoaded: false,   // lists are known (from the on-device copy or the server)
+  offline: false,       // snapshots have come from the on-device copy for 3+ seconds (D18)
+  queued: false,        // local changes the server hasn't confirmed yet
+  view: local.get('view') || 'all',   // checked once the lists are known (D25)
+  draft: null,          // composer picks: { lists, prio }
+  editing: null,        // task editor: { id, lists, prio }
+  listsDraft: null,     // lists editor: working copy of state.lists
+};
+// Defaults for missing fields (D7). Colors must be #rrggbb because they go into style attributes (D26).
+const toTask = raw => ({ title: '', prio: DEFAULT_PRIO, done: false, created: 0, doneAt: null, ...raw,
+                         lists: Array.isArray(raw.lists) ? raw.lists : [] });
+const toList = raw => ({ id: String(raw.id), name: String(raw.name ?? ''),
+                         color: /^#[0-9a-f]{6}$/i.test(raw.color) ? raw.color : PALETTE[0] });
+const listById = id => state.lists.find(list => list.id === id);
+const byId = id => state.tasks.find(task => task.id === id);
+const freshDraft = () => ({ lists: state.view === 'all' ? [] : [state.view], prio: DEFAULT_PRIO });
+state.draft = freshDraft();
+let store, unwatch, offlineTimer, pruned = false;
+
+const actions = {
+  setView(view) {
+    state.view = view;
+    local.set('view', view);
+    state.draft = freshDraft();
+    render();
+    renderPickers();
+  },
+  add(title) {
+    title = title.trim();
+    if (!title) return false;
+    store.add({ title, lists: state.draft.lists, prio: state.draft.prio, done: false, created: Date.now(), doneAt: null });
+    state.draft = freshDraft();
+    return true;
+  },
+  toggle(id) {
+    const task = byId(id);
+    if (task) store.patch(id, { done: !task.done, doneAt: task.done ? null : Date.now() });
+  },
+  save(id, { title, lists, prio }) {
+    title = title.trim();
+    if (!title) return false;
+    store.patch(id, { title, lists, prio });
+    return true;
+  },
+  remove(id) { store.remove(id); },
+  saveLists(draft) {   // D9, D11
+    const before = new Map(state.lists.map(list => [list.id, list]));
+    const lists = draft.map(list => ({ ...list, name: list.name.trim() || before.get(list.id)?.name || '' }))
+      .filter(list => list.name);   // a blank new list isn't created; a blanked old one keeps its name
+    const gone = state.lists.filter(list => !lists.some(kept => kept.id === list.id));
+    if (gone.length && !confirm(`Delete ${gone.map(list => `"${list.name}"`).join(', ')}? `
+      + 'Their tasks stay in All and in any other lists they are on.')) return false;
+    store.saveSettings({ lists });
+    return true;
+  },
+  prune() {   // D13
+    const cutoff = Date.now() - DONE_TTL_DAYS * 864e5;
+    const old = state.tasks.filter(t => t.done && t.doneAt && t.doneAt < cutoff);
+    if (old.length) store.removeMany(old.map(t => t.id));
+  },
+  backup() {   // D20
+    const data = { app: 'todo', exportedAt: new Date().toISOString(), lists: state.lists, tasks: state.tasks };
+    const link = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })),
+      download: `todo-backup-${data.exportedAt.slice(0, 10)}.json`,
+    });
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  },
+  restore(data) {   // merge: adds missing lists, writes tasks by id, deletes nothing (D20)
+    if (!state.listsLoaded) return toast('Your lists are still loading. Try again in a moment.');
+    const tasks = (Array.isArray(data?.tasks) ? data.tasks : [])
+      .filter(t => typeof t?.id === 'string' && /^[^/]+$/.test(t.id) && typeof t.title === 'string').map(toTask);
+    const lists = (Array.isArray(data?.lists) ? data.lists : [])
+      .filter(l => typeof l?.id === 'string' && l.id !== 'all' && typeof l.name === 'string').map(toList);
+    if (!tasks.length && !lists.length) return toast("That file isn't a Todo backup.");
+    if (!confirm(`Restore ${tasks.length} tasks and ${lists.length} lists from this backup? `
+      + 'Tasks with the same id are replaced. Nothing is deleted.')) return;
+    store.saveSettings({ lists: [...state.lists, ...lists.filter(list => !listById(list.id))] });
+    store.putMany(tasks);
+    toast(`Restored ${tasks.length} tasks and ${lists.length} lists.`);
+  },
+};
+
+function onUser(user) {
+  unwatch?.();
+  Object.assign(state, { user, tasks: [], lists: [], loaded: false, listsLoaded: false, offline: false });
+  unwatch = user ? store.watch(onTasks, onSettings, err => toast(explain(err))) : null;
+  show(user ? 'main' : 'login');
+  render();
+  renderPickers();
+}
+
+function onTasks(tasks, meta) {
+  Object.assign(state, { tasks: tasks.map(toTask), loaded: true, queued: meta.hasPendingWrites });
+  clearTimeout(offlineTimer);
+  if (meta.fromCache) {   // every start begins from the on-device copy, so wait before calling it offline
+    offlineTimer = setTimeout(() => { state.offline = true; render(); }, 3000);
+  } else {
+    state.offline = false;
+    if (!pruned) { pruned = true; actions.prune(); }
+  }
+  render();
+}
+
+function onSettings(settings, meta) {
+  if (!settings) {   // nothing saved yet. Only the server can say so; the on-device copy may just be empty (D10)
+    if (!meta.fromCache) store.saveSettings({ lists: DEFAULT_LISTS });
+    return;
+  }
+  state.lists = (Array.isArray(settings.lists) ? settings.lists : []).map(toList);
+  state.listsLoaded = true;
+  if (state.view !== 'all' && !listById(state.view)) return actions.setView('all');   // its list was deleted (D25)
+  render();
+  renderPickers();
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+const $ = selector => document.querySelector(selector);
+const esc = value => String(value).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);   // all user text goes through this (D26)
+const inView = task => state.view === 'all' || task.lists.includes(state.view);
+const byPriority = (a, b) => a.prio - b.prio || b.created - a.created;   // D12
+
+function render() {
+  const open = state.tasks.filter(t => !t.done);
+  $('#tabs').innerHTML = [{ id: 'all', name: 'All', color: 'var(--ink)' }, ...state.lists].map(list => {
+    const n = open.filter(t => list.id === 'all' || t.lists.includes(list.id)).length;
+    return `<button class="tab" data-act="view" data-view="${esc(list.id)}" style="--c:${list.color}"
+      ${list.id === state.view ? 'aria-current="page"' : ''}><span class="tab-name" data-text="${esc(list.name)}">${esc(list.name)}</span>${n ? `<sup>${n}</sup>` : ''}</button>`;
+  }).join('') + (state.listsLoaded
+    ? '<button class="tab-add" data-act="editLists" aria-label="Add or edit lists" title="Add or edit lists">+</button>' : '');
+
+  const current = listById(state.view);
+  $('#add-title').placeholder = current ? `Add to ${current.name}` : 'Add a task';
+  const shown = state.tasks.filter(inView);
+  const todo = shown.filter(t => !t.done).sort(byPriority);
+  const done = shown.filter(t => t.done).sort((a, b) => b.doneAt - a.doneAt);
+  $('#list').innerHTML = !state.loaded ? ''
+    : (todo.map(taskHTML).join('') || `<li class="empty">${current ? `Nothing in ${esc(current.name)}.` : 'Nothing to do.'} Add a task above.</li>`);
+  $('#done-box').hidden = !done.length;
+  $('#done-summary').textContent = `Done (${done.length})`;
+  $('#done-list').innerHTML = done.map(taskHTML).join('');
+
+  $('#status').hidden = !state.offline;
+  $('#status').textContent = state.queued ? 'Offline. Your changes will sync when you reconnect.' : 'Offline. Showing your last synced list.';
+  $('#who').textContent = state.user?.email ? `Signed in as ${state.user.email}` : '';
+}
+
+function taskHTML(t) {
+  const tags = t.lists.filter(id => id !== state.view).map(listById).filter(Boolean)   // the *other* lists it's on (D22)
+    .map(list => `<span class="tag" style="--c:${list.color}">${esc(list.name)}</span>`).join('');
+  return `<li class="task p${Number(t.prio)}${t.done ? ' done' : ''}">
+    <button class="check" role="checkbox" aria-checked="${t.done}" aria-label="${esc(t.title)}" data-act="toggle" data-id="${esc(t.id)}"></button>
+    <button class="body" data-act="edit" data-id="${esc(t.id)}"><span class="title">${esc(t.title)}</span>${tags && `<span class="tags">${tags}</span>`}</button>
+  </li>`;
+}
+
+function pickersHTML(pick, target) {   // shared by the composer ('draft') and the task editor ('editing')
+  const lists = state.lists.map(l => `<button type="button" class="chip" style="--c:${l.color}" data-act="pickList" data-for="${target}"
+    data-list="${esc(l.id)}" aria-pressed="${pick.lists.includes(l.id)}">${esc(l.name)}</button>`).join('');
+  const prios = PRIOS.map(p => `<button type="button" class="prio p${p.id}" data-act="pickPrio" data-for="${target}"
+    data-prio="${p.id}" aria-pressed="${pick.prio === p.id}"><span class="title">${p.label}</span></button>`).join('');
+  return `<div class="chips" role="group" aria-label="Lists">${lists}</div><div class="prios" role="group" aria-label="Priority">${prios}</div>`;
+}
+
+function renderPickers() {
+  $('#add-opts').innerHTML = pickersHTML(state.draft, 'draft');
+  if (state.editing) $('#edit-opts').innerHTML = pickersHTML(state.editing, 'editing');
+}
+
+function openEditor(id) {
+  const task = byId(id);
+  if (!task) return;
+  state.editing = { id, lists: [...task.lists], prio: task.prio };
+  $('#edit-title').value = task.title;
+  renderPickers();
+  $('#editor').showModal();
+  $('#edit-opts .chip, #edit-opts .prio').focus();   // a button, not the text field, so phones don't pop up the keyboard
+}
+
+function renderListsEditor() {
+  const last = state.listsDraft.length - 1;
+  $('#lists-rows').innerHTML = state.listsDraft.map((list, i) => `<li class="list-row">
+    <button type="button" class="swatch" style="--c:${list.color}" data-act="recolorList" data-i="${i}" aria-label="Change color"></button>
+    <input class="field" data-i="${i}" value="${esc(list.name)}" placeholder="New list" aria-label="List name" maxlength="40" autocomplete="off" enterkeyhint="done">
+    <button type="button" class="icon-btn" data-act="moveList" data-i="${i}" data-by="-1" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+    <button type="button" class="icon-btn" data-act="moveList" data-i="${i}" data-by="1" aria-label="Move down" ${i === last ? 'disabled' : ''}>↓</button>
+    <button type="button" class="icon-btn" data-act="dropList" data-i="${i}" aria-label="Delete list">×</button>
+  </li>`).join('');
+}
+
+function addDraftList() {
+  const used = state.listsDraft.map(list => list.color);
+  const color = PALETTE.find(c => !used.includes(c)) ?? PALETTE[used.length % PALETTE.length];
+  state.listsDraft.push({ id: crypto.randomUUID().slice(0, 8), name: '', color });
+  renderListsEditor();
+  $('#lists-rows li:last-child input').focus();
+}
+
+function openListsEditor() {
+  state.listsDraft = state.lists.map(list => ({ ...list }));
+  $('#lists-editor').showModal();
+  addDraftList();   // "+" means add: start with an empty row. Blank rows are dropped on save (D9)
+}
+
+function show(screen) {
+  for (const id of ['boot', 'login', 'main']) $(`#${id}`).hidden = id !== screen;
+}
+
+let toastTimer;
+function toast(message) {
+  Object.assign($('#toast'), { textContent: message, hidden: false });
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 6000);
+}
+
+const MESSAGES = {
+  'app/config-missing': "Couldn't load firebase-config.js. Check that it's uploaded next to index.html.",
+  'app/config-empty': 'Add your Firebase settings to firebase-config.js (README, step 2).',
+  'app/sdk-offline': "Couldn't load Firebase. Open the app once while online so this device keeps a copy.",
+  'auth/invalid-credential': 'Wrong email or password.',
+  'auth/wrong-password': 'Wrong email or password.',
+  'auth/user-not-found': 'Wrong email or password.',
+  'auth/invalid-email': "That doesn't look like an email address.",
+  'auth/too-many-requests': 'Too many attempts. Wait a few minutes, then try again.',
+  'auth/network-request-failed': 'No connection. Signing in needs the internet.',
+  'permission-denied': 'The database refused access. Check that firestore.rules is published with your UID (README, step 5).',
+  'not-found': 'That task no longer exists. It was probably deleted on another device.',
+};
+const explain = err => MESSAGES[err?.code] ?? `Something went wrong (${err?.code || err?.message || err}).`;
+
+// ─── EVENTS ──────────────────────────────────────────────────────────────────
+const clicks = {   // buttons say what they do with data-act="…"
+  view: el => actions.setView(el.dataset.view),
+  toggle: el => {   // show the tick first, then move the task (D24)
+    el.setAttribute('aria-checked', el.getAttribute('aria-checked') !== 'true');
+    setTimeout(() => actions.toggle(el.dataset.id), 350);
+  },
+  edit: el => openEditor(el.dataset.id),
+  pickList: el => {
+    const pick = state[el.dataset.for], id = el.dataset.list;
+    pick.lists = pick.lists.includes(id) ? pick.lists.filter(l => l !== id) : [...pick.lists, id];
+    el.setAttribute('aria-pressed', pick.lists.includes(id));
+    keepTyping(el);
+  },
+  pickPrio: el => {
+    state[el.dataset.for].prio = Number(el.dataset.prio);
+    for (const button of el.parentElement.children) button.setAttribute('aria-pressed', button === el);
+    keepTyping(el);
+  },
+  deleteTask: () => {
+    if (!confirm(`Delete "${$('#edit-title').value}"?`)) return;
+    actions.remove(state.editing.id);
+    $('#editor').close();
+  },
+  close: el => el.closest('dialog').close(),
+  editLists: () => openListsEditor(),
+  addList: () => addDraftList(),
+  recolorList: el => {
+    const list = state.listsDraft[el.dataset.i];
+    list.color = PALETTE[(PALETTE.indexOf(list.color) + 1) % PALETTE.length];
+    el.style.setProperty('--c', list.color);
+  },
+  moveList: el => {
+    const i = Number(el.dataset.i), j = i + Number(el.dataset.by), rows = state.listsDraft;
+    [rows[i], rows[j]] = [rows[j], rows[i]];
+    renderListsEditor();
+    const row = $('#lists-rows').children[j];   // keep focus on the moved list
+    (row.querySelector(`[data-by="${el.dataset.by}"]:enabled`) ?? row.querySelector('.swatch')).focus();
+  },
+  dropList: el => { state.listsDraft.splice(Number(el.dataset.i), 1); renderListsEditor(); },
+  backup: () => actions.backup(),
+  restore: () => $('#restore-file').click(),
+  signout: () => { unwatch?.(); unwatch = null; store.signOut(); },
+};
+// On a computer, put focus back in the new-task field so Enter still adds. (On a phone that would reopen the keyboard.)
+const keepTyping = el => { if (el.dataset.for === 'draft' && matchMedia('(pointer: fine)').matches) $('#add-title').focus(); };
+
+document.addEventListener('click', event => {
+  const el = event.target.closest('[data-act]');
+  if (el) clicks[el.dataset.act](el);
+});
+$('#add-title').addEventListener('input', event => $('#add').classList.toggle('typing', event.target.value.trim() !== ''));
+$('#add').addEventListener('submit', event => {
+  event.preventDefault();
+  if (!actions.add($('#add-title').value)) return;
+  $('#add-title').value = '';
+  $('#add').classList.remove('typing');
+  renderPickers();
+});
+$('#edit-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const { id, lists, prio } = state.editing;
+  if (actions.save(id, { title: $('#edit-title').value, lists, prio })) $('#editor').close();
+});
+$('#editor').addEventListener('close', () => { state.editing = null; });
+$('#lists-rows').addEventListener('input', event => { state.listsDraft[event.target.dataset.i].name = event.target.value; });
+$('#lists-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (actions.saveLists(state.listsDraft)) $('#lists-editor').close();
+});
+$('#lists-editor').addEventListener('close', () => { state.listsDraft = null; });
+$('#restore-file').addEventListener('change', async event => {
+  const [file] = event.target.files;
+  event.target.value = '';   // so picking the same file again still works
+  if (!file) return;
+  let data;
+  try { data = JSON.parse(await file.text()); } catch { return toast("That file isn't a Todo backup."); }
+  actions.restore(data);
+});
+$('#login').addEventListener('submit', async event => {
+  event.preventDefault();
+  const { email, password } = event.target.elements, button = event.target.querySelector('button');
+  $('#login-error').textContent = '';
+  button.disabled = true;
+  try { await store.signIn(email.value.trim(), password.value); }
+  catch (err) { $('#login-error').textContent = explain(err); }
+  finally { button.disabled = false; }
+});
+
+// ─── BOOT ────────────────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(err => console.warn('Offline support unavailable:', err));
+}
+try {
+  store = await connectStore(err => toast(explain(err)));
+  store.onUser(onUser);
+} catch (err) {
+  $('#boot').textContent = explain(err);
+  show('boot');
+  console.error(err);
+}
+</script>
+</body>
+</html>
