@@ -1,0 +1,54 @@
+/* Base: typeface, colors, fields, buttons, sign-in and messages. The other files style one part of the screen each. */
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("../fonts/AtkinsonHyperlegibleNext.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+:root {
+  color-scheme: light dark;
+  --page: #ffffff;  --side: #f6f7f9;  --field: #ffffff;  --ink: #1b2330;  --muted: #677184;
+  --line: #e1e4e9;  --soft: #eef0f3;  --danger: #b3261e;
+  --side-w: 16.5rem;
+  --font: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0f141a;  --side: #151b23;  --field: #151b23;  --ink: #e6e9ee;  --muted: #8a94a3;
+    --line: #29313b;  --soft: #1c232c;  --danger: #ff8a80;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 400 16px/1.45 var(--font);
+  -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
+button:disabled { cursor: default; opacity: .3; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+
+/* Fields and buttons */
+.field { width: 100%; min-width: 0; padding: .55rem .75rem; border: 1px solid var(--line); border-radius: 6px; background: var(--field); }
+.field:focus { outline: none; border-color: var(--muted); box-shadow: 0 0 0 3px var(--soft); }
+textarea.field { resize: vertical; }
+.btn { padding: .55rem 1rem; border-radius: 6px; font-size: .95rem; font-weight: 600; }
+.btn-primary { background: var(--ink); color: var(--page); }
+.btn-plain { color: var(--muted); }
+.btn-danger { padding-left: 0; color: var(--danger); }
+.add-list, .link { justify-self: start; padding: .2rem 0; font-size: .95rem; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Sign-in, loading, messages */
+.login { display: grid; gap: .75rem; width: min(24rem, calc(100% - 2rem)); margin: 16vh auto 0; padding: 2rem;
+         border: 1px solid var(--line); border-radius: 10px; background: var(--side); }
+.login h1 { margin: 0; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+.hint { margin: 0 0 .5rem; color: var(--muted); }
+.editor .hint { margin: 0; font-size: .88rem; }
+.error { min-height: 1.45em; margin: 0; color: var(--danger); }
+.boot { padding: 2rem; color: var(--muted); }
+.toast { position: fixed; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom)); transform: translateX(-50%);
+         width: max-content; max-width: calc(100% - 2rem); padding: .65rem 1rem; border-radius: 6px;
+         background: var(--ink); color: var(--page); font-size: .92rem; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

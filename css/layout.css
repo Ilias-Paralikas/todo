@@ -1,0 +1,43 @@
+/* Layout: lists in a top bar on phones, in a sidebar on wider screens; the tasks fill the rest (DECISIONS D36). */
+.side { padding: max(.6rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) .5rem max(1rem, env(safe-area-inset-left));
+        background: var(--side); border-bottom: 1px solid var(--line); }
+.brand, .heading, .add-label { display: none; }
+.content { padding: 1rem max(1rem, env(safe-area-inset-right)) 2.5rem max(1rem, env(safe-area-inset-left)); }
+.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1.25rem;
+        padding: 1.25rem max(1rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+        border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+.foot-actions { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
+.foot button { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Lists. On phones they wrap rather than scroll, so every list and its count stays in sight. */
+.tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.1rem; }
+.tab, .tab-add { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem 0; color: var(--muted);
+                 border-bottom: 2px solid transparent; }
+.tab[aria-current="page"] { color: var(--ink); font-weight: 650; border-color: var(--c); }
+.dot { flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c); }
+.tab-name { display: inline-flex; flex-direction: column; }
+.tab-name::after { content: attr(data-text); font-weight: 650; height: 0; overflow: hidden; visibility: hidden; } /* reserve bold width: no jumping */
+.count { font-size: .78rem; font-variant-numeric: tabular-nums; }
+.tab-add { position: relative; padding-inline: .3rem; font-size: 1.15rem; line-height: 1; }
+.tab-add::after { content: ""; position: absolute; inset: -.6rem -.4rem; } /* bigger touch target */
+.status { margin: 0 0 .75rem; font-size: .88rem; color: var(--muted); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-bottom: .9rem; }
+
+@media (min-width: 900px) {
+  .side { position: fixed; inset: 0 auto 0 0; width: var(--side-w); overflow-y: auto; padding: 1.25rem .75rem 9rem;
+          border-bottom: 0; border-right: 1px solid var(--line); }
+  .brand { display: block; margin: 0 0 1rem; padding: 0 .6rem; font-size: 1.05rem; font-weight: 700; }
+  .tabs { flex-direction: column; align-items: stretch; gap: 1px; }
+  .tab, .tab-add { gap: .6rem; padding: .4rem .6rem; border: 0; border-radius: 6px; }
+  .tab:hover, .tab-add:hover { background: var(--soft); }
+  .tab[aria-current="page"] { background: var(--soft); }
+  .count { margin-left: auto; color: var(--muted); font-weight: 400; }
+  .tab-add { margin-top: .5rem; font-size: .92rem; line-height: inherit; }
+  .add-label { display: inline; }
+  .content { margin-left: var(--side-w); padding: 2rem 3rem 4rem; }
+  .heading { display: block; margin: 0; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+  .toolbar { margin-bottom: 1.25rem; }
+  .foot { position: fixed; left: 0; bottom: 0; width: var(--side-w); flex-direction: column; padding: 1rem 1.35rem 1.25rem;
+          background: var(--side); border-right: 1px solid var(--line); }
+  .toast { left: calc(50% + var(--side-w) / 2); }
+}

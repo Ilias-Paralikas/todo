@@ -8,7 +8,8 @@ It runs as static files on GitHub Pages, with Firebase's free plan for sign-in a
 
 | File | What it is |
 |---|---|
-| `index.html` | The whole app |
+| `index.html` | The page itself |
+| `js/`, `css/` | The app's code and styles, one file per job |
 | `firebase-config.js` | Your Firebase project settings (step 2) |
 | `firestore.rules` | Who may read and write your data (step 5) |
 | `sw.js` | Lets the app open without a connection |
@@ -55,7 +56,7 @@ Offline use: once a device has opened the app twice while online, it also opens 
 
 - **Add a task** in the field at the top. It goes into the open list. To also put it on other lists, change its priority, or give it a price, start and end dates or a link, use the options below the field before adding. Each list shows its High, Normal and Low tasks in separate groups.
 - **Complete a task** by tapping its circle. Tap the text to edit it, change its lists, priority, price, dates or link, or delete it. A link shows as the site's name with ↗; tap it to open the page.
-- **Projects** are for things with several steps. Open a task and tap **Make it a project**, or choose **Project** under the field when adding. Tapping a project opens its own page, with a description (**Edit**) and its subtasks; add subtasks there. A project can contain projects too, as deep as you like: the top of a sub-project's page shows the projects above it. In a list, the arrow next to a project shows what's inside, and you can tick things off right there. Completing a project completes everything inside it; deleting it deletes everything inside it.
+- **Projects** are for things with several steps. Open a task and tap **Make it a project**, or choose **Project** under the field when adding. Tapping a project opens its own page, with a description (**Edit**) and its subtasks; add subtasks there. A project can contain projects too, as deep as you like. Tapping one of those sub-projects opens it right where it is, instead of on a page of its own: you see its description and everything in it, and a field that adds to it, with its **Edit** button next to it. Tap it again to close it. In a list, the arrow next to a project shows what's inside, and you can tick things off right there. Completing a project completes everything inside it; deleting it deletes everything inside it.
 - **Everything / Tasks / Projects** next to the list's name shows only single tasks or only projects, in every list. Each device remembers your choice.
 - **Timeline**: give a project's subtasks start and end dates, and its page shows them as a Gantt chart, with a line for today. Tap a bar to edit that subtask.
 - **Priority colors**: tap **High**, **Normal** or **Low** above a group of tasks to pick its color. It colors those labels, the priority buttons and the timeline bars, on all your devices.

@@ -11,7 +11,9 @@ from playwright.async_api import async_playwright, expect
 
 HERE, TMP = os.path.dirname(os.path.abspath(__file__)), tempfile.gettempdir()
 REPO, FAKE, SHOTS = os.path.dirname(HERE), os.path.join(HERE, 'fake-firebase'), os.path.join(TMP, 'todo-shots')
-SDK_VERSION = re.search(r'firebasejs/([\d.]+)', open(os.path.join(REPO, 'index.html'), encoding='utf-8').read()).group(1)
+read = lambda path: open(os.path.join(REPO, path), encoding='utf-8').read()
+SDK_VERSION = re.search(r'firebasejs/([\d.]+)', read('js/config.js')).group(1)
+SW_VERSION = re.search(r"VERSION = '([^']+)'", read('sw.js')).group(1)
 CONFIG = "export const FIREBASE_CONFIG = { apiKey: 'test-key', authDomain: 'demo.firebaseapp.com', projectId: 'demo', appId: '1:1:web:1' };"
 PLACEHOLDER = "export const FIREBASE_CONFIG = { apiKey: 'PASTE-YOUR-API-KEY', projectId: 'your-project-id' };"   # before README step 2
 NOW, HOUR = int(time.time() * 1000), 3600_000
@@ -434,8 +436,11 @@ async def test_subprojects_and_filter(browser, url):
     await start_signed_in(page, SEED)
     trip = '#list > .task:has-text("Plan Lisbon trip")'
     key = lambda tasks, title: next(k for k, t in tasks.items() if t['title'] == title)
+    own = lambda row: f'{row} > .col > .line'          # a row's own line, not the lines of the rows inside it
+    panel = lambda row: f'{row} > .col > .unfolded'    # what an open sub-project shows (D44)
+    inner_titles = lambda row: page.locator(f'{panel(row)} > .subs > .task > .col > .line .title').all_inner_texts()
 
-    # ── Sub-projects (D41) ──
+    # ── Sub-projects open in place (D41, D44) ──
     await page.click(f'{trip} .line .body'); await page.wait_for_timeout(150)
     check('the list filter is hidden on a project page', await page.is_hidden('#show'))
     await page.fill('#add-title', 'Book hotels'); await page.dispatch_event('#add-title', 'input')
@@ -444,29 +449,49 @@ async def test_subprojects_and_filter(browser, url):
     tasks = await stored_tasks(page); hotels = key(tasks, 'Book hotels')
     check('add a sub-project straight from a project page', tasks[hotels]['project'] is True and tasks[hotels]['parent'] == TRIP, tasks[hotels])
     check('the choice goes back to Task after adding', await page.get_attribute('#add-opts [data-project="false"]', 'aria-pressed') == 'true')
-    await page.click('#list .task:has-text("Book hotels") .line .body'); await page.wait_for_timeout(150)
-    check('a sub-project has its own page, with the way back up', page.url.endswith(f'#p={hotels}')
-          and 'Plan Lisbon trip' in await page.inner_text('#project-head .crumb'))
-    await page.fill('#add-title', 'Compare Alfama hotels'); await page.dispatch_event('#add-title', 'input')
-    await page.fill('#add-start', day(3)); await page.fill('#add-end', day(6)); await page.press('#add-title', 'Enter')
+    row = '#list > .task:has-text("Book hotels")'
+    await page.click(f'{own(row)} .body'); await page.wait_for_timeout(150)
+    check('tapping a sub-project opens it in place, not on a page of its own', page.url.endswith(f'#p={TRIP}')
+          and await page.inner_text('#project-head h1') == 'Plan Lisbon trip' and await page.is_visible(f'{panel(row)} > .sub-add input')
+          and await page.get_attribute(f'{own(row)} .body', 'aria-expanded') == 'true')
+    field = f'{panel(row)} > .sub-add input'
+    await page.fill(field, 'Compare Alfama hotels'); await page.press(field, 'Enter'); await page.wait_for_timeout(100)
+    await page.keyboard.type('Pay the deposit'); await page.keyboard.press('Enter'); await page.wait_for_timeout(100)
+    tasks = await stored_tasks(page)
+    parents = [tasks[key(tasks, title)]['parent'] for title in ('Compare Alfama hotels', 'Pay the deposit')]
+    check('its field adds to it, and stays ready for the next one', parents == [hotels, hotels]
+          and await inner_titles(row) == ['Pay the deposit', 'Compare Alfama hotels'] and await page.input_value(field) == '', parents)
+    compare, deposit_row = f'{panel(row)} > .subs > .task:has-text("Compare Alfama")', f'{panel(row)} > .subs > .task:has-text("Pay the deposit")'
+    await page.click(f'{own(compare)} .body')
+    await page.fill('#edit-start', day(3)); await page.fill('#edit-end', day(6)); await page.click('#edit-form .btn-primary')
     await page.wait_for_timeout(100)
-    await add(page, 'Pay the deposit')
-    await page.click('#list .task:has-text("Pay the deposit") .body'); await page.click('#make-project'); await page.wait_for_timeout(150)
+    await page.click(f'{own(deposit_row)} .body'); await page.click('#make-project'); await page.wait_for_timeout(150)
     tasks = await stored_tasks(page); deposit = key(tasks, 'Pay the deposit')
-    check('a subtask of a sub-project can become a project too, at any depth', tasks[deposit]['project'] and tasks[deposit]['parent'] == hotels)
-    check('the trail shows every level', (await page.inner_text('#project-head .crumb')).count(' / ') == 2,
-          await page.inner_text('#project-head .crumb'))
-    await page.click('#project-head .crumb [data-act="open"] >> nth=0'); await page.wait_for_timeout(150)
-    check('tapping a level in the trail opens it', await page.inner_text('#project-head h1') == 'Plan Lisbon trip')
+    check('a subtask of a sub-project can become a project too, and opens in place', tasks[deposit]['project']
+          and tasks[deposit]['parent'] == hotels and page.url.endswith(f'#p={TRIP}') and await page.is_visible(f'{panel(deposit_row)} > .sub-add'))
+    await page.click(f'{panel(row)} > .sub-add [data-act="edit"]')
+    check('the Edit button by its field edits the sub-project, description included', await page.inner_text('#edit-heading') == 'Edit sub-project'
+          and await page.is_visible('#edit-notes') and await page.is_hidden('#make-project'))
+    await page.fill('#edit-notes', 'Near the river.'); await page.click('#edit-form .btn-primary'); await page.wait_for_timeout(100)
+    check('an open sub-project shows its description', await page.inner_text(f'{panel(row)} > .notes') == 'Near the river.')
+    await page.click(f'{compare} > .check'); await page.wait_for_timeout(500)
+    check('done items stay inside it, struck through, after the open ones', await inner_titles(row) == ['Pay the deposit', 'Compare Alfama hotels']
+          and 'done' in await page.get_attribute(compare, 'class') and await page.inner_text(f'{own(row)} .aside') == '1/2')
     check('on the timeline a sub-project is one bar spanning the dates inside it',
           await page.locator('.gantt .g-name.sub').all_inner_texts() == ['Book hotels'])
-    await page.click('#project-head [data-act="back"]'); await page.wait_for_timeout(200)
-    check('the back button returns to the list from any depth', await page.is_hidden('#project-head') and '#p=' not in page.url)
+    await page.screenshot(path=f'{SHOTS}/subproject-open.png')
+    await page.click(f'{own(row)} .body'); await page.wait_for_timeout(100)
+    check('tapping it again closes it', await page.locator(panel(row)).count() == 0)
+    await page.go_back(); await page.wait_for_timeout(150)
+    check('back (the phone gesture) returns to the list', await page.is_hidden('#project-head') and '#p=' not in page.url)
     await page.click(f'{trip} .expand')
-    hotels_row = f'{trip} .subs > .task:has-text("Book hotels")'
-    await page.click(f'{hotels_row} .line .expand')
-    check('in a list, sub-projects expand level by level',
-          'Compare Alfama hotels' in await page.locator(f'{hotels_row} .subs .title').all_inner_texts())
+    in_list = f'{trip} > .col > .subs > .task:has-text("Book hotels")'
+    await page.click(f'{own(in_list)} .body'); await page.wait_for_timeout(100)
+    check('in a list, a sub-project opens in place the same way', '#p=' not in page.url
+          and 'Compare Alfama hotels' in await inner_titles(in_list), await inner_titles(in_list))
+    await page.goto(f'{url}#p={deposit}'); await page.wait_for_timeout(150)
+    check("an old link to a sub-project's page shows its project's page", await page.inner_text('#project-head h1') == 'Plan Lisbon trip')
+    await page.click('#project-head [data-act="back"]'); await page.wait_for_timeout(150)
 
     # ── Show everything, only tasks or only projects (D42) ──
     top = lambda: page.locator('#list > .task > .col > .line .title').all_inner_texts()
@@ -495,6 +520,38 @@ async def test_subprojects_and_filter(browser, url):
           and not any(t.get('parent') in (TRIP, hotels, deposit) for t in tasks.values()))
     check('sub-projects and filter: no console errors', not page.errors, page.errors)
     await ctx.close()
+
+async def test_models(browser, url):
+    """The classes in js/models.js (D43), and the file layout, checked directly."""
+    ctx, page = await context(browser, url)
+    result = await page.evaluate("""async () => {
+      const { ItemSet } = await import('./js/models.js');
+      const set = new ItemSet([{ id: 'p', title: 'Trip', project: true }, { id: 's', title: 'Hotels', project: true, parent: 'p' },
+        { id: 't', title: 'Milk' }, { id: 'u', title: 'Call', parent: 's', lists: ['work'], extra: 'not kept' },
+        { id: 'x', title: 'Orphan', parent: 'gone' }, { id: 'y', title: 'In a task', parent: 't' },
+        { id: 'a', title: 'Loop A', project: true, parent: 'b' }, { id: 'b', title: 'Loop B', project: true, parent: 'a' }]);
+      return { kinds: Object.fromEntries(set.all.map(i => [i.id, i.constructor.name])), opens: ['t', 'u', 'p', 's'].map(id => set.get(id).opens),
+               inside: set.get('p').contents.map(i => i.id), rows: set.rowsIn('work').map(i => i.id),
+               stored: Object.keys(JSON.parse(JSON.stringify(set.get('u')))).sort() }; }""")
+    check('each item becomes the class its fields call for (D43)', result['kinds'] == {'p': 'Project', 's': 'SubProject', 't': 'Task',
+          'u': 'Subtask', 'x': 'Task', 'y': 'Task', 'a': 'Project', 'b': 'Project'}, result['kinds'])
+    check('tapping does what each class says: edit, edit, page, in place', result['opens'] == ['edit', 'edit', 'open', 'expand'], result['opens'])
+    check('a project contains everything at every level; a subtask on its own list is a row', result['inside'] == ['s', 'u']
+          and result['rows'] == ['u'], result)
+    check('an item turns into exactly its stored fields (backups, D37)', result['stored'] == sorted(['id', 'title', 'lists', 'prio', 'done',
+          'created', 'doneAt', 'project', 'notes', 'parent', 'price', 'start', 'end', 'url']), result['stored'])
+    check('classes: no console errors', not page.errors, page.errors)
+    await ctx.close()
+    shell = set(re.findall(r"'([^']+)'", re.search(r'SHELL = \[(.*?)\];', read('sw.js'), re.S).group(1)))
+    code = {os.path.relpath(os.path.join(d, f), REPO).replace(os.sep, '/') for top in ('js', 'css')
+            for d, _, files in os.walk(os.path.join(REPO, top)) for f in files}
+    check('sw.js saves every script and style for offline use (D17)', code and code <= shell, sorted(code - shell))
+    html = read('index.html')
+    loaded = set(re.findall(r'<link rel="modulepreload" href="([^"]+)">', html)) | set(re.findall(r'<script type="module" src="([^"]+)">', html))
+    scripts = {f for f in code if f.endswith('.js')}
+    check('index.html fetches every module at once (D43)', scripts == loaded, (sorted(scripts - loaded), sorted(loaded - scripts)))
+    check('index.html is markup only: styles in css/, code in js/ (D43)', '<style' not in html
+          and not re.search(r'<script(?![^>]*\bsrc=)', html))
 
 async def test_offline_first_run(browser, url):
     """A device's first run while offline must not write default lists over real ones (D10)."""
@@ -546,6 +603,14 @@ async def test_phone(browser, url):
             await page.screenshot(path=f'{shot}-project.png')
             fits = await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             check(f'{name}: project page opens and fits', fits and await page.is_visible('#project-head'))
+            await page.fill('#add-title', 'Book hotels'); await page.dispatch_event('#add-title', 'input')
+            await page.tap('#add-opts [data-project="true"]'); await page.tap('.btn-add'); await page.wait_for_timeout(100)
+            await page.tap('#list > .task:has-text("Book hotels") > .col > .line .body'); await page.wait_for_timeout(100)
+            await page.fill('#list .sub-add input', 'Compare prices'); await page.press('#list .sub-add input', 'Enter')
+            await page.wait_for_timeout(100)
+            await page.screenshot(path=f'{shot}-subproject.png')
+            fits = await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            check(f'{name}: a sub-project opens in place and fits', fits and 'Compare prices' in await titles(page, '#list .unfolded'))
             check(f'{name}: no console errors', not page.errors, page.errors)
             await ctx.close()
 
@@ -575,7 +640,7 @@ async def test_service_worker(browser, url, root):
     await page.reload(); await page.wait_for_timeout(500)                     # second online open
     await ctx.set_offline(True); await page.reload(); await page.wait_for_timeout(800)
     check('service worker: starts offline after two online opens (D17)', await page.is_visible('#login'))
-    await page.evaluate("caches.open('todo-v1').then(c => c.keys().then(ks => Promise.all(ks.filter(r => r.url.includes('gstatic')).map(r => c.delete(r)))))")
+    await page.evaluate(f"caches.open('{SW_VERSION}').then(c => c.keys().then(ks => Promise.all(ks.filter(r => r.url.includes('gstatic')).map(r => c.delete(r)))))")
     sdk['on'] = False; await page.reload(); await page.wait_for_timeout(800)
     check('service worker: SDK not saved yet + offline -> explains', 'Open the app once while online' in await page.inner_text('#boot'))
     sdk['on'] = True; await ctx.set_offline(False)
@@ -591,10 +656,12 @@ async def main():
     root = tempfile.mkdtemp()
     shutil.copytree(REPO, root, dirs_exist_ok=True, ignore=shutil.ignore_patterns('tests', '.git'))
     port = 8700 + os.getpid() % 200
-    server = subprocess.Popen([sys.executable, '-m', 'http.server', str(port)], cwd=root,
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    serve = ('import http.server as h, sys\n'   # the standard file server, with room for the page's many files at once
+             'class Server(h.ThreadingHTTPServer): request_queue_size = 128\n'
+             'Server(("127.0.0.1", int(sys.argv[1])), h.SimpleHTTPRequestHandler).serve_forever()')
+    server = subprocess.Popen([sys.executable, '-c', serve, str(port)], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.8)
-    url = f'http://localhost:{port}/'
+    url = f'http://127.0.0.1:{port}/'
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -603,6 +670,7 @@ async def main():
             await test_projects_and_prices(browser, url)
             await test_dates_colors_links(browser, url)
             await test_subprojects_and_filter(browser, url)
+            await test_models(browser, url)
             await test_offline_first_run(browser, url)
             await test_phone(browser, url)
             await test_real_sdk(browser, url)

@@ -1,0 +1,22 @@
+/* Project timeline: a Gantt chart of the dated subtasks, bars in their priority's color (D38) */
+.gantt { margin-top: 1.25rem; font-size: .85rem; }
+.g-legend { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-bottom: .4rem; font-size: .78rem; color: var(--muted); }
+.g-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+.g-legend span::before { content: ""; width: .6rem; height: .6rem; border-radius: 2px; background: var(--c); }
+.g-legend .today::before { width: 0; height: .8rem; border-left: 1px solid var(--ink); border-radius: 0; }
+.g-body { display: grid; grid-template-columns: clamp(6.5rem, 30%, 14rem) minmax(0, 1fr); column-gap: .75rem; }
+.g-names { padding-top: 1.4rem; }
+.g-name { display: block; width: 100%; height: 1.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.9rem; }
+.g-name.whole, .g-name.sub { font-weight: 650; }
+.g-name.done { color: var(--muted); text-decoration: line-through; }
+.g-plot { position: relative; overflow: hidden; }
+.g-axis { position: relative; height: 1.4rem; border-bottom: 1px solid var(--line); font-size: .72rem; color: var(--muted); }
+.g-axis span { position: absolute; top: 0; padding-left: .3rem; white-space: nowrap; line-height: 1.4rem; }
+.g-plot i { position: absolute; top: 1.4rem; bottom: 0; border-left: 1px solid var(--soft); }
+.g-plot i.today { border-color: var(--ink); opacity: .55; }
+.g-track { position: relative; height: 1.9rem; }
+.g-bar { position: absolute; top: .45rem; height: 1rem; min-width: 4px; border-radius: 4px; background: var(--c); }
+.g-bar.whole { top: .8rem; height: .3rem; border-radius: 2px; background: var(--ink); }
+.g-bar.done { opacity: .35; }
+.g-note { margin: .5rem 0 0; font-size: .78rem; color: var(--muted); }
+@media (max-width: 600px) { .g-axis span:nth-child(even) { visibility: hidden; } }

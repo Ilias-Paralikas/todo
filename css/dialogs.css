@@ -1,0 +1,17 @@
+/* Dialogs: task editor and lists editor */
+.editor { width: min(34rem, calc(100% - 2rem)); max-height: 84vh; margin: 10vh auto auto; padding: 1.25rem; overflow-y: auto;
+          border: 1px solid var(--line); border-radius: 10px; background: var(--page); color: var(--ink); box-shadow: 0 12px 40px rgb(0 0 0 / .18); }
+.editor.narrow { width: min(24rem, calc(100% - 2rem)); }
+.editor::backdrop { background: rgb(15 20 26 / .45); }
+.editor form { display: grid; gap: .85rem; }
+.editor h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+.actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
+.actions .btn-danger { margin-right: auto; }
+.list-rows { display: grid; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.list-row { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }   /* wraps only for the color grid */
+.list-row .field { flex: 1; width: auto; }
+.swatch { flex: none; width: 1.5rem; height: 1.5rem; margin-right: .3rem; border-radius: 50%; background: var(--c); }
+.colors { flex-basis: 100%; display: grid; grid-template-columns: repeat(8, 1fr); gap: .45rem; padding: .4rem .2rem .6rem; }   /* D35 */
+.colors button { aspect-ratio: 1; border-radius: 6px; background: var(--c); }
+.colors [aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
+.icon-btn { flex: none; width: 2rem; height: 2.2rem; border-radius: 6px; font-size: 1.05rem; color: var(--muted); text-align: center; }
