@@ -1,16 +1,19 @@
 rules_version = '2';
 
-// Database security rules (DECISIONS D4). This file does nothing on its own:
-// replace OWNER_UID with your User UID (README, step 3), then paste the whole file into
-// Firebase console → Firestore Database → Rules, and click Publish (README, step 5).
+// Database security rules (DECISIONS D4, D54). This file does nothing on its own: paste the whole
+// file into Firebase console -> Firestore Database -> Rules, and click Publish (README, step 5).
 // Anything not matched below is denied.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Only the owner, signed in, can read or write, and only under their own users/{uid}.
+    // Only a signed-in listed user can read or write, and only under their own users/{uid} (D54).
+    // Each person's data is separate: nobody can see or touch another's.
     match /users/{uid}/{document=**} {
       allow read, write: if request.auth != null
                          && request.auth.uid == uid
-                         && uid == "JL0tj6lwNUal2VmZszwNIp4izaB3";
+                         && uid in [
+                           "JL0tj6lwNUal2VmZszwNIp4izaB3",
+                           "LF6rpOsLt2Sl9SlAlqn6LnneLTG2"
+                         ];
     }
   }
 }

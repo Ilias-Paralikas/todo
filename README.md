@@ -32,13 +32,15 @@ On the project's overview page, add a Web app (the `</>` icon). Give it any nick
 
 Open Build → Authentication and click Get started. Under Sign-in method, enable Email/Password (leave "Email link" off). Under Users, click Add user and enter your email and a strong password. Then copy the User UID from the users table.
 
+To add someone else later, with their own separate lists, create a second user the same way (or ask an agent for a command that creates it without either of you typing a password in chat), copy their UID too, and add it to `firestore.rules` (below) before republishing it.
+
 ### 4. Create the database
 
 Open Build → Firestore Database and click Create database. If you're asked for an edition, choose Standard. Pick a location near you (it can't be changed later) and start in production mode.
 
-### 5. Lock the database to your account
+### 5. Lock the database to your account(s)
 
-In `firestore.rules`, replace `OWNER_UID` with the UID from step 3 (keep the quotes). Then open Firestore Database → Rules in the console, replace everything there with the file's contents, and click Publish.
+In `firestore.rules`, replace `OWNER_UID` with the UID from step 3 (keep the quotes). Add another UID to the list for each extra person (D54); each person only ever sees their own tasks and lists, never anyone else's. Then open Firestore Database → Rules in the console, replace everything there with the file's contents, and click Publish.
 
 ### 6. Put the app online
 
