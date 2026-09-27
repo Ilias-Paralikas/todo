@@ -1,13 +1,10 @@
 // How an item repeats (D50): every n days, weeks (on chosen weekdays) or months. Stored on the item as
 // `repeat: { every, unit, days }`; this class works out its dates, its wording and its calendar rule.
 // Days are whole days since 1970 (format.js); weekdays count from Monday = 0.
-import { dayOf, isoOf, weekdayName } from './format.js';
+import { dayIn, dayOf, isoOf, monthOf, weekdayName, weekdayOf as weekday } from './format.js';
 
 const UNITS = ['day', 'week', 'month'];
-const weekday = day => (day + 3) % 7;   // 1 January 1970 was a Thursday
 const monday = day => day - weekday(day);
-const monthOf = day => { const d = new Date(day * 864e5); return { year: d.getUTCFullYear(), month: d.getUTCMonth(), date: d.getUTCDate() }; };
-const inMonth = (year, month, date) => Date.UTC(year, month, Math.min(date, new Date(Date.UTC(year, month + 1, 0)).getUTCDate())) / 864e5;
 
 export class Repeat {
   // The stored form, or null when raw isn't a valid rule. Missing or odd parts get defaults (D49).
@@ -33,7 +30,7 @@ export class Repeat {
       }
     }
     const { year, month, date } = monthOf(anchor);
-    for (let k = this.every; ; k += this.every) { const d = inMonth(year, month + k, date); if (d > base) return d; }
+    for (let k = this.every; ; k += this.every) { const d = dayIn(year, month + k, date); if (d > base) return d; }
   }
 
   // Its first occurrence on or after `from` (a weekly rule may move a date forward to one of its weekdays).

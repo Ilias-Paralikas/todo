@@ -1,13 +1,13 @@
 // A project's timeline: a Gantt chart in plain HTML and CSS (D38).
 import { PRIOS } from '../config.js';
-import { DAY, esc, fmtDay, today } from '../format.js';
+import { DAY, esc, fmtDay, today, weekdayOf } from '../format.js';
 import { prioColor } from '../state.js';
 
 function ticksFor(min, max) {   // about six dates to label the timeline: days, weeks from Monday, or months
   const span = max - min, out = [];
   if (span <= 120) {
     const step = [1, 2, 7, 14, 28].find(s => span / s <= 7) ?? 28;
-    for (let d = step < 7 ? min : min + (7 - (min + 3) % 7) % 7; d < max; d += step) out.push(d);
+    for (let d = step < 7 ? min : min + (7 - weekdayOf(min)) % 7; d < max; d += step) out.push(d);   // weeks start on Monday
   } else {
     const first = new Date(min * DAY), every = Math.ceil(span / 30 / 7);
     for (let m = first.getUTCMonth() + 1, d; (d = Date.UTC(first.getUTCFullYear(), m, 1) / DAY) < max; m += every) out.push(d);

@@ -1,13 +1,18 @@
 // The dates, time, repeat, price and link fields. The composer ('add') and the editor ('edit') share them, so they
 // look and behave the same (D47): start and end side by side, then time and repeat, then price and link.
+// Dates are picked from the app's own calendar (D52).
 import { parsePrice, parseUrl, weekdayName } from '../format.js';
+import { DatePicker } from './datepicker.js';
 import { $ } from './dom.js';
 
+const dateHTML = (form, name, label) => `<div class="when"><span id="${form}-${name}-label">${label}</span>
+  <button type="button" id="${form}-${name}" class="field date unset" value="" aria-labelledby="${form}-${name}-label ${form}-${name}"
+    aria-haspopup="dialog" aria-expanded="false">Pick a date</button></div>`;
+
 const fieldsHTML = form => `
-  <div class="pair">
-    <label class="when"><span>Start</span><input id="${form}-start" class="field" type="date"></label>
-    <label class="when"><span>End</span><input id="${form}-end" class="field" type="date"></label>
-  </div>
+  <div class="pair">${dateHTML(form, 'start', 'Start')}${dateHTML(form, 'end', 'End')}</div>
+  <div id="${form}-calendar" class="datepicker" role="dialog" hidden></div>
+  <p id="${form}-dates-error" class="error" role="alert" hidden></p>
   <div class="pair">
     <label class="when"><span>Time</span><input id="${form}-time" class="field" type="time"></label>
     <label class="when"><span>Repeat</span><select id="${form}-repeat" class="field">
@@ -26,13 +31,16 @@ const fieldsHTML = form => `
   </div>`;
 
 const field = (form, name) => $(`#${form}-${name}`);
-const CHECKED = ['price', 'end', 'url', 'time', 'every'];   // the fields that can refuse what's typed
+const CHECKED = ['price', 'url', 'time', 'every'];   // typed fields that can refuse what's typed; dates report below them
+const pickers = {};
 
 export function renderFields() {   // once, at start-up, into each <div data-fields="add|edit">
   for (const form of ['add', 'edit']) {
     $(`[data-fields="${form}"]`).innerHTML = fieldsHTML(form);
+    pickers[form] = new DatePicker({ start: field(form, 'start'), end: field(form, 'end') }, field(form, 'calendar'));
     for (const name of ['repeat', 'every']) field(form, name).addEventListener('input', () => showRhythm(form));
     for (const name of CHECKED) field(form, name).addEventListener('input', event => event.target.setCustomValidity(''));
+    for (const name of ['start', 'end']) field(form, name).addEventListener('input', () => { field(form, 'dates-error').hidden = true; });
   }
 }
 
@@ -49,9 +57,11 @@ export function readFields(form) {
   const values = { price: parsePrice(f('price').value), start: f('start').value || null, end: f('end').value || null,
                    url: parseUrl(f('url').value), time: f('time').value || null,
                    repeat: unit ? { unit, every, days: [...f('days').querySelectorAll(':checked')].map(box => Number(box.value)) } : null };
+  const backwards = Boolean(values.start && values.end && values.end < values.start);
+  Object.assign(f('dates-error'), { hidden: !backwards, textContent: backwards ? 'The end is before the start.' : '' });
+  if (backwards) { f('end').focus(); return undefined; }
   const problems = {
     price: Number.isNaN(values.price) && 'Write the price as a number, like 4.50',
-    end: values.start && values.end && values.end < values.start && 'The end is before the start',
     url: values.url === false && 'Write a web address, like example.com/page',
     time: values.time && !values.start && !values.end && !unit && 'Pick a date for this time',
     every: unit && !(Number.isInteger(every) && every >= 1 && every <= 99) && 'Write a number from 1 to 99',
@@ -63,7 +73,10 @@ export function readFields(form) {
 export function fillFields(form, item) {   // show an item's values (the editor), or none (after adding)
   const f = name => field(form, name), repeat = item.repeat;
   f('price').value = item.price == null ? '' : (item.price / 100).toFixed(2);
-  for (const name of ['start', 'end', 'url', 'time']) f(name).value = item[name] ?? '';
+  for (const name of ['url', 'time']) f(name).value = item[name] ?? '';
+  for (const name of ['start', 'end']) pickers[form].set(name, item[name]);
+  pickers[form].close();
+  f('dates-error').hidden = true;
   f('repeat').value = repeat?.unit ?? '';
   f('every').value = repeat?.every ?? 1;
   for (const box of f('days').querySelectorAll('input')) box.checked = Boolean(repeat?.days.includes(Number(box.value)));

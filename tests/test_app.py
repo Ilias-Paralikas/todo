@@ -79,6 +79,19 @@ async def add(page, title, lists=(), prio=None):
     await page.press('#add-title', 'Enter')
     await page.wait_for_timeout(50)
 
+async def pick_date(page, form, name, iso):
+    """Pick a date the way a person does (D52): open the calendar, step to its month, tap the day. None clears it."""
+    await page.click(f'#{form}-{name}')
+    panel = f'#{form}-calendar'
+    if iso is None: return await page.click(f'{panel} [data-set="clear"]')
+    for _ in range(36):
+        shown = await page.get_attribute(f'{panel} .dp-grid', 'data-month')
+        if shown == iso[:7]: break
+        await page.click(f'{panel} [data-months="{1 if shown < iso[:7] else -1}"]')
+    await page.click(f'{panel} .day:not(.other)[data-day="{iso}"]')
+
+def date_value(page, selector): return page.eval_on_selector(selector, 'e => e.value')
+
 def titles(page, where='#list'): return page.locator(f'{where} .title').all_inner_texts()
 def tab_names(page): return page.evaluate("[...document.querySelectorAll('.tab')].map(t => t.querySelector('.tab-name').innerText)")
 async def stored(page): return dict(await page.evaluate("Object.entries(JSON.parse(localStorage.fakeDB || '{}'))"))
@@ -372,19 +385,22 @@ async def test_dates_colors_links(browser, url):
     # ── Dates (D38) ──
     await page.click('[data-view="work"]')
     await page.fill('#add-title', 'Quarterly review'); await page.dispatch_event('#add-title', 'input')
-    await page.fill('#add-start', day(5)); await page.fill('#add-end', day(3)); await page.press('#add-title', 'Enter')
+    await pick_date(page, 'add', 'start', day(5)); await pick_date(page, 'add', 'end', day(3)); await page.press('#add-title', 'Enter')
     await page.wait_for_timeout(100)
-    message = await page.eval_on_selector('#add-end', 'e => e.validationMessage')
+    message = await page.inner_text('#add-dates-error')
     check('an end before the start is refused, with a reason', find(await stored_tasks(page), 'Quarterly review') is None
           and 'before the start' in message, message)
-    await page.fill('#add-end', day(8)); await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
+    await pick_date(page, 'add', 'end', day(8))
+    check('picking a date clears the message', await page.is_hidden('#add-dates-error'))
+    await page.press('#add-title', 'Enter'); await page.wait_for_timeout(100)
     review = find(await stored_tasks(page), 'Quarterly review')
     check('start and end are stored as calendar dates', review and (review['start'], review['end']) == (day(5), day(8)), review)
     row = '#list .task:has-text("Quarterly review")'
     check('the row shows its dates', '–' in await page.inner_text(f'{row} .tags'))
     await page.click(f'{row} .body')
-    check('the editor shows the dates', await page.input_value('#edit-start') == day(5))
-    await page.fill('#edit-start', ''); await page.click('#edit-form .btn-primary'); await page.wait_for_timeout(100)
+    check('the editor shows the dates', await date_value(page, '#edit-start') == day(5)
+          and await page.inner_text('#edit-start') != 'Pick a date')
+    await pick_date(page, 'edit', 'start', None); await page.click('#edit-form .btn-primary'); await page.wait_for_timeout(100)
     review = find(await stored_tasks(page), 'Quarterly review')
     check('an end without a start is a due date', review['start'] is None and review['end'] == day(8)
           and 'Due' in await page.inner_text(f'{row} .tags'), review)
@@ -463,7 +479,7 @@ async def test_subprojects_and_filter(browser, url):
           and await inner_titles(row) == ['Pay the deposit', 'Compare Alfama hotels'] and await page.input_value(field) == '', parents)
     compare, deposit_row = f'{panel(row)} > .subs > .task:has-text("Compare Alfama")', f'{panel(row)} > .subs > .task:has-text("Pay the deposit")'
     await page.click(f'{own(compare)} .body')
-    await page.fill('#edit-start', day(3)); await page.fill('#edit-end', day(6)); await page.click('#edit-form .btn-primary')
+    await pick_date(page, 'edit', 'start', day(3)); await pick_date(page, 'edit', 'end', day(6)); await page.click('#edit-form .btn-primary')
     await page.wait_for_timeout(100)
     await page.click(f'{own(deposit_row)} .body'); await page.click('#make-project'); await page.wait_for_timeout(150)
     tasks = await stored_tasks(page); deposit = key(tasks, 'Pay the deposit')
@@ -572,6 +588,51 @@ async def test_moving_and_layout(browser, url):
     await page.click('#side-toggle'); await page.wait_for_timeout(50)
     check('the same button shows it again', await page.is_visible('.side') and await page.get_attribute('#side-toggle', 'title') == 'Hide lists')
     check('moving and layout: no console errors', not page.errors, page.errors)
+    await ctx.close()
+
+async def test_date_picker(browser, url):
+    ctx, page = await context(browser, url, viewport={'width': 1280, 'height': 860})
+    await start_signed_in(page, SEED)
+    from datetime import date, timedelta
+    import calendar as cal
+    today = date.today()
+    await page.fill('#add-title', 'Dentist'); await page.dispatch_event('#add-title', 'input')
+    await page.click('#add-start')
+    panel = '#add-calendar'
+    days = page.locator(f'{panel} .day')
+    other = await page.locator(f'{panel} .day.other').count()
+    check('the calendar shows six whole weeks, from Monday', await days.count() == 42
+          and (await days.nth(0).get_attribute('data-day')) == (today.replace(day=1) - timedelta(today.replace(day=1).weekday())).isoformat())
+    check("the neighbouring months' days are there, in grey (D52)", other == 42 - cal.monthrange(today.year, today.month)[1]
+          and await page.locator(f'{panel} .day.other').first.is_visible()
+          and float(await page.eval_on_selector(f'{panel} .day.other', 'e => getComputedStyle(e).opacity')) < 1
+          and float(await page.eval_on_selector(f'{panel} .day:not(.other)', 'e => getComputedStyle(e).opacity')) == 1, other)
+    check('today is marked', await page.get_attribute(f'{panel} .day.today', 'data-day') == today.isoformat())
+    await page.screenshot(path=f'{SHOTS}/date-picker.png')
+    last = await days.nth(41).get_attribute('data-day')
+    await days.nth(41).click()
+    check('a grey day can be picked too', await date_value(page, '#add-start') == last and await page.is_hidden(panel)
+          and await page.get_attribute('#add-start', 'class') == 'field date', await date_value(page, '#add-start'))
+    await page.click('#add-start')
+    check('it opens on the month of its date', await page.get_attribute(f'{panel} .dp-grid', 'data-month') == last[:7]
+          and await page.evaluate("document.activeElement.dataset.day") == last)
+    await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter')
+    moved = (date.fromisoformat(last) + timedelta(8)).isoformat()
+    check('arrow keys move through the days; Enter picks', await date_value(page, '#add-start') == moved, await date_value(page, '#add-start'))
+    await pick_date(page, 'add', 'end', (date.fromisoformat(moved) + timedelta(4)).isoformat())
+    await page.click('#add-start')
+    check('the days from start to end are shaded', await page.locator(f'{panel} .day.between').count() == 3
+          and await page.locator(f'{panel} .day.bound').count() == 1)
+    await page.keyboard.press('Escape')
+    check('Escape closes it', await page.is_hidden(panel))
+    await page.fill('#add-title', ''); await page.dispatch_event('#add-title', 'input')
+    await page.click('#list .task:has-text("Oat milk") .body')
+    await page.click('#edit-end'); await page.keyboard.press('Escape')
+    check('in the editor, Escape closes the calendar but not the editor', await page.is_hidden('#edit-calendar') and await page.is_visible('#editor'))
+    await page.click('#edit-end'); await page.click('#edit-title')
+    check('clicking elsewhere closes it', await page.is_hidden('#edit-calendar'))
+    await page.click('#editor [data-act="close"]')
+    check('date picker: no console errors', not page.errors, page.errors)
     await ctx.close()
 
 async def test_repeats_and_alerts(browser, url):
@@ -728,6 +789,11 @@ async def test_phone(browser, url):
             await page.fill('#add-title', 'Chalk bag'); await page.dispatch_event('#add-title', 'input')
             await page.tap('#add-opts [data-list="hobbies"]')
             await page.screenshot(path=f'{shot}-composer.png')
+            await page.tap('#add-start')
+            await page.screenshot(path=f'{shot}-date-picker.png')
+            fits = await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            check(f'{name}: the calendar fits the screen', fits and await page.is_visible('#add-calendar'))
+            await page.keyboard.press('Escape')
             start, end, price = [await page.locator(f'#add-{n}').bounding_box() for n in ('start', 'end', 'price')]
             check(f'{name}: start and end fit side by side, above the price', start['y'] == end['y']
                   and end['x'] + end['width'] <= width and price['y'] > start['y'], (start, end, price))
@@ -820,6 +886,7 @@ async def main():
             await test_dates_colors_links(browser, url)
             await test_subprojects_and_filter(browser, url)
             await test_moving_and_layout(browser, url)
+            await test_date_picker(browser, url)
             await test_repeats_and_alerts(browser, url)
             await test_models(browser, url)
             await test_offline_first_run(browser, url)
