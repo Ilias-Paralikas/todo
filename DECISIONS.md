@@ -71,7 +71,7 @@ Rules for this file:
 
 **D27. Typeface: Atkinson Hyperlegible Next**, self-hosted in fonts/ with its license (SIL Open Font License), subset to Latin, variable weight 200–800. Why: it is designed for legibility at a glance, its weight range carries D21, and there are no third-party font requests.
 
-**D28. List tabs wrap instead of scrolling sideways**, so every list and its open count stay in sight. The + for adding or editing lists follows the last tab. Tabs reserve their bold width, so switching lists doesn't shift the layout.
+**D28. List tabs wrap instead of scrolling sideways**, so every list and its open count stay in sight. The + for adding or editing lists follows the last tab. Tabs reserve their bold width, so switching lists doesn't shift the layout. *Superseded by D36.*
 
 ## Process
 
@@ -90,3 +90,5 @@ Rules for this file:
 **D34. Priority groups** (supersedes D21). Open tasks are shown in groups, High, Normal and Low, each under a small label with a line; empty groups are left out. High titles are bolder and Low titles grey; there is no highlighter. Why: the owner found the highlighter hard to read.
 
 **D35. List colors are picked from a grid.** Tapping a list's dot in the lists editor opens all 16 `PALETTE` colors under it; tapping one picks it and closes the grid. Why: stepping through the colors one tap at a time was impractical.
+
+**D36. Layout and look** (supersedes D28). On screens 900px and wider, the lists are a full-height sidebar on the left (each with its color and open count, the + below them as "New list", the account links at its foot) and the tasks fill the rest of the window, under the open list's name as a heading. On phones the lists are tabs in a top bar that wrap instead of scrolling sideways, so every list and its count stay in sight and nothing is wider than the screen; tabs reserve their bold width, so switching lists doesn't shift the layout. The look is flat and neutral: white page, grey sidebar, thin lines between tasks, 4–6px corners, small circles, and one segmented control for priority. Why: the owner asked for a more professional, less rounded look that uses the whole screen on a computer.

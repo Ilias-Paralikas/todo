@@ -4,8 +4,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f3f5f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#10161d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151b23" media="(prefers-color-scheme: dark)">
 <title>Todo</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
@@ -20,168 +20,204 @@
 }
 :root {
   color-scheme: light dark;
-  --page: #f3f5f7;  --field: #ffffff;  --ink: #1b2433;  --muted: #687384;
-  --line: #dce1e7;  --danger: #b3261e;
+  --page: #ffffff;  --side: #f6f7f9;  --field: #ffffff;  --ink: #1b2330;  --muted: #677184;
+  --line: #e1e4e9;  --soft: #eef0f3;  --danger: #b3261e;
+  --side-w: 16.5rem;
   --font: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --page: #10161d;  --field: #18212b;  --ink: #e8ecf1;  --muted: #8f9aa9;
-    --line: #2a3542;  --danger: #ff8a80;
+    --page: #0f141a;  --side: #151b23;  --field: #151b23;  --ink: #e6e9ee;  --muted: #8a94a3;
+    --line: #29313b;  --soft: #1c232c;  --danger: #ff8a80;
   }
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body {
   margin: 0; background: var(--page); color: var(--ink);
-  font: 420 17px/1.45 var(--font);
+  font: 400 16px/1.45 var(--font);
   -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
 }
 button, input, textarea { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
 button:disabled { cursor: default; opacity: .3; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
-.page {
-  max-width: 38rem; margin: 0 auto;
-  padding: max(1rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
-           max(2rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+
+/* Layout: lists in a top bar on phones, in a sidebar on wider screens; the tasks fill the rest (DECISIONS D36). */
+.side { padding: max(.6rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) .5rem max(1rem, env(safe-area-inset-left));
+        background: var(--side); border-bottom: 1px solid var(--line); }
+.brand, .heading, .add-label { display: none; }
+.content { padding: 1rem max(1rem, env(safe-area-inset-right)) 2.5rem max(1rem, env(safe-area-inset-left)); }
+.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1.25rem;
+        padding: 1.25rem max(1rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+        border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+.foot-actions { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
+.foot button { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Lists. On phones they wrap rather than scroll, so every list and its count stays in sight. */
+.tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.1rem; }
+.tab, .tab-add { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem 0; color: var(--muted);
+                 border-bottom: 2px solid transparent; }
+.tab[aria-current="page"] { color: var(--ink); font-weight: 650; border-color: var(--c); }
+.dot { flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c); }
+.tab-name { display: inline-flex; flex-direction: column; }
+.tab-name::after { content: attr(data-text); font-weight: 650; height: 0; overflow: hidden; visibility: hidden; } /* reserve bold width: no jumping */
+.count { font-size: .78rem; font-variant-numeric: tabular-nums; }
+.tab-add { position: relative; padding-inline: .3rem; font-size: 1.15rem; line-height: 1; }
+.tab-add::after { content: ""; position: absolute; inset: -.6rem -.4rem; } /* bigger touch target */
+.status { margin: 0 0 .75rem; font-size: .88rem; color: var(--muted); }
+
+@media (min-width: 900px) {
+  .side { position: fixed; inset: 0 auto 0 0; width: var(--side-w); overflow-y: auto; padding: 1.25rem .75rem 9rem;
+          border-bottom: 0; border-right: 1px solid var(--line); }
+  .brand { display: block; margin: 0 0 1rem; padding: 0 .6rem; font-size: 1.05rem; font-weight: 700; }
+  .tabs { flex-direction: column; align-items: stretch; gap: 1px; }
+  .tab, .tab-add { gap: .6rem; padding: .4rem .6rem; border: 0; border-radius: 6px; }
+  .tab:hover, .tab-add:hover { background: var(--soft); }
+  .tab[aria-current="page"] { background: var(--soft); }
+  .count { margin-left: auto; color: var(--muted); font-weight: 400; }
+  .tab-add { margin-top: .5rem; font-size: .92rem; line-height: inherit; }
+  .add-label { display: inline; }
+  .content { margin-left: var(--side-w); padding: 2rem 3rem 4rem; }
+  .heading { display: block; margin: 0 0 1.25rem; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+  .foot { position: fixed; left: 0; bottom: 0; width: var(--side-w); flex-direction: column; padding: 1rem 1.35rem 1.25rem;
+          background: var(--side); border-right: 1px solid var(--line); }
+  .toast { left: calc(50% + var(--side-w) / 2); }
 }
 
-/* Priority: open tasks come in groups, each under a labelled line; High is bolder, Low is grey (DECISIONS D34). */
-.p1 .title { font-weight: 660; }
+/* Fields and buttons */
+.field { width: 100%; min-width: 0; padding: .55rem .75rem; border: 1px solid var(--line); border-radius: 6px; background: var(--field); }
+.field:focus { outline: none; border-color: var(--muted); box-shadow: 0 0 0 3px var(--soft); }
+textarea.field { resize: vertical; }
+.btn { padding: .55rem 1rem; border-radius: 6px; font-size: .95rem; font-weight: 600; }
+.btn-primary { background: var(--ink); color: var(--page); }
+.btn-plain { color: var(--muted); }
+.btn-danger { padding-left: 0; color: var(--danger); }
+.add-list, .link { justify-self: start; padding: .2rem 0; font-size: .95rem; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+/* New-task composer, and the list, priority and price pickers */
+.composer { display: grid; grid-template-columns: 1fr auto; gap: .5rem; margin-bottom: 1.25rem; }
+.composer:not(.typing) { column-gap: 0; }
+.composer:not(.typing) :is(.btn-add, .opts) { display: none; }
+.opts { grid-column: 1 / -1; display: grid; gap: .6rem; }
+.picks { display: grid; gap: .6rem; }
+.price { width: 9rem; justify-self: start; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip { display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .6rem; border: 1px solid var(--line); border-radius: 4px;
+        font-size: .88rem; color: var(--muted); }
+.chip[aria-pressed="true"] { color: var(--ink); border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.chip::before, .tag::before { content: ""; flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--c); }
+.tag.in::before { content: "↳"; width: auto; height: auto; background: none; }   /* the project of a subtask shown on its own */
+.prios { display: inline-flex; justify-self: start; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.prio { padding: .3rem .85rem; font-size: .88rem; }
+.prio + .prio { border-left: 1px solid var(--line); }
+.prio[aria-pressed="true"] { background: var(--ink); color: var(--page); }
+.prio[aria-pressed="true"] .title { color: inherit; }
+
+/* Priority: open tasks come in groups, each under a labelled line; High is bolder, Low is grey (D34). */
+.p1 .title { font-weight: 620; }
 .p3 .title { color: var(--muted); }
-.group { display: flex; align-items: center; gap: .6rem; margin: 1rem 0 .15rem; font-size: .75rem; font-weight: 650;
+.group { display: flex; align-items: center; gap: .6rem; margin: 1.4rem 0 .1rem; font-size: .72rem; font-weight: 650;
          letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .group::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 .group:first-child { margin-top: 0; }
 
-/* List tabs. They wrap rather than scroll, so every list stays in sight. */
-.tabs { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem 1.15rem; padding: .5rem 0 1rem; }
-.tab, .tab-add { font-size: 1.25rem; font-weight: 300; color: var(--muted); border-bottom: 3px solid transparent; }
-.tab[aria-current="page"] { font-weight: 760; color: var(--ink); border-color: var(--c); }
-.tab-name { display: inline-flex; flex-direction: column; align-items: center; }
-.tab-name::after { content: attr(data-text); font-weight: 760; height: 0; overflow: hidden; visibility: hidden; } /* reserve bold width: no jumping */
-.tab sup { margin-left: .1rem; font-size: .7rem; font-weight: 600; }
-.tab-add { position: relative; padding: 0 .35rem; }
-.tab-add::after { content: ""; position: absolute; inset: -.6rem -.4rem; } /* bigger touch target */
-.status { margin: -.5rem 0 .75rem; font-size: .88rem; color: var(--muted); }
-
-/* Fields and buttons */
-.field { width: 100%; min-width: 0; padding: .7rem .9rem; border: 1px solid var(--line); border-radius: 12px; background: var(--field); }
-.field:focus { outline: none; border-color: var(--ink); }
-.btn { padding: .65rem 1.1rem; border-radius: 12px; font-weight: 650; }
-.btn-primary { background: var(--ink); color: var(--page); }
-.btn-plain { color: var(--muted); }
-.btn-danger { padding-left: 0; color: var(--danger); }
-
-/* New-task composer and the list/priority pickers */
-.composer { display: grid; grid-template-columns: 1fr auto; gap: .6rem; margin-bottom: 1.1rem; }
-.composer:not(.typing) :is(.btn-add, .opts) { display: none; }
-.opts { grid-column: 1 / -1; display: grid; gap: .55rem; }
-.picks { display: grid; gap: .55rem; }
-.price { width: 10rem; justify-self: start; }
-.chips, .prios { display: flex; flex-wrap: wrap; gap: .45rem; }
-.chip, .prio { padding: .3rem .65rem; border: 1px solid var(--line); border-radius: 999px; font-size: .92rem; }
-.chip { display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); }
-.chip[aria-pressed="true"] { color: var(--ink); font-weight: 600; border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
-.prio { border-color: transparent; }
-.prio[aria-pressed="true"] { border-color: var(--ink); }
-.chip::before, .tag::before { content: ""; flex: none; width: .55rem; height: .55rem; border-radius: 50%; background: var(--c); }
-.tag.in::before { content: "↳"; width: auto; height: auto; background: none; }   /* the project of a subtask shown on its own */
-
 /* Tasks */
 .list { list-style: none; margin: 0; padding: 0; }
-.task { display: flex; align-items: flex-start; gap: .85rem; padding: .5rem 0; }
-.check { position: relative; flex: none; width: 1.4rem; height: 1.4rem; margin-top: .1rem;
-         border: 2px solid var(--muted); border-radius: 50%; transition: background-color .15s, border-color .15s; }
-.check::after { content: ""; position: absolute; inset: -.65rem; } /* bigger touch target */
+.task { display: flex; align-items: flex-start; gap: .75rem; padding: .6rem 0; }
+.list > .task + .task { border-top: 1px solid var(--soft); }
+.check { position: relative; flex: none; width: 1.15rem; height: 1.15rem; margin-top: .16rem;
+         border: 1.5px solid var(--muted); border-radius: 50%; transition: background-color .15s, border-color .15s; }
+.check::after { content: ""; position: absolute; inset: -.7rem; } /* bigger touch target */
 .p1 .check { border-color: var(--ink); }
 .check[aria-checked="true"] { background: var(--muted); border-color: var(--muted); }
-.check[aria-checked="true"]::before { content: ""; position: absolute; left: .36rem; top: .14rem; width: .3rem; height: .62rem;
-         border: solid var(--page); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.check[aria-checked="true"]::before { content: ""; position: absolute; left: .32rem; top: .12rem; width: .27rem; height: .54rem;
+         border: solid var(--page); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
 .col { flex: 1; min-width: 0; }
-.line { display: flex; align-items: flex-start; gap: .6rem; }
+.line { display: flex; align-items: flex-start; gap: .75rem; }
 .body { flex: 1; min-width: 0; }
 .title { overflow-wrap: anywhere; }
-.aside { flex: none; margin-top: .05rem; font-size: .92rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.expand { position: relative; flex: none; width: 1.5rem; height: 1.5rem; color: var(--muted); }
-.expand::before { content: ""; position: absolute; left: .5rem; top: .4rem; width: .45rem; height: .45rem; border: solid currentColor;
-                  border-width: 0 2px 2px 0; transform: rotate(-45deg); transition: transform .15s; }
+.aside { flex: none; font-size: .88rem; line-height: 1.65; color: var(--muted); font-variant-numeric: tabular-nums; }
+.expand { position: relative; flex: none; width: 1.4rem; height: 1.45rem; color: var(--muted); }
+.expand::before { content: ""; position: absolute; left: .47rem; top: .4rem; width: .4rem; height: .4rem; border: solid currentColor;
+                  border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform .15s; }
 .expand[aria-expanded="true"]::before { transform: rotate(45deg); }
 .expand::after { content: ""; position: absolute; inset: -.6rem; } /* bigger touch target */
 .subs { list-style: none; margin: .3rem 0 0; padding: 0; }
 .subs .task { padding: .3rem 0; }
-.tags { display: flex; flex-wrap: wrap; gap: .15rem .9rem; margin-top: .1rem; font-size: .8rem; color: var(--muted); }
-.tag { display: inline-flex; align-items: center; gap: .35rem; }
-.done .title { font-weight: 340; color: var(--muted); text-decoration: line-through; }
-.empty { padding: 1.25rem 0; color: var(--muted); }
-.total { margin: .5rem 0 0; padding-top: .5rem; border-top: 1px solid var(--line); text-align: right; font-weight: 650;
+.tags { display: flex; flex-wrap: wrap; gap: .1rem .8rem; margin-top: .1rem; font-size: .78rem; color: var(--muted); }
+.tag { display: inline-flex; align-items: center; gap: .3rem; }
+.done .title { font-weight: 400; color: var(--muted); text-decoration: line-through; }
+.empty { padding: 1rem 0; color: var(--muted); }
+.total { margin: .25rem 0 0; padding-top: .6rem; border-top: 1px solid var(--line); text-align: right; font-weight: 650;
          font-variant-numeric: tabular-nums; }
-
-/* Project page (D32) */
-.project-head { margin-bottom: 1.1rem; }
-.crumb { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .7rem; font-size: .92rem; font-weight: 600; color: var(--muted); }
-.project-head .task { padding: 0; }
-.project-head h1 { margin: 0; font-size: 1.5rem; line-height: 1.25; }
-.notes { margin: .7rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.done-box { margin-top: 1.5rem; }
-.done-box summary { display: flex; align-items: center; gap: .6rem; padding: .35rem 0; font-weight: 600; color: var(--muted); cursor: pointer; list-style: none; }
+.done-box { margin-top: 1.75rem; }
+.done-box summary { display: flex; align-items: center; gap: .55rem; padding: .3rem 0; font-size: .92rem; font-weight: 600; color: var(--muted);
+                    cursor: pointer; list-style: none; }
 .done-box summary::-webkit-details-marker { display: none; }
-.done-box summary::before { content: ""; width: .45rem; height: .45rem; border: solid currentColor; border-width: 0 2px 2px 0;
+.done-box summary::before { content: ""; width: .4rem; height: .4rem; border: solid currentColor; border-width: 0 1.5px 1.5px 0;
          transform: rotate(-45deg); transition: transform .15s; }
 .done-box[open] summary::before { transform: rotate(45deg); }
-.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6rem 1.25rem; margin-top: 3rem; font-size: .85rem; color: var(--muted); }
-.foot-actions { display: flex; flex-wrap: wrap; gap: .6rem 1.25rem; }
-.foot button { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Project page (D32) */
+.project-head { margin-bottom: 1.25rem; }
+.crumb { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; font-size: .88rem; font-weight: 600; color: var(--muted); }
+.project-head .task { padding: 0; }
+.project-head h1 { margin: 0; font-size: 1.45rem; font-weight: 700; line-height: 1.25; }
+.project-head .check { margin-top: .4rem; }
+.notes { max-width: 48rem; margin: .75rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* Dialogs: task editor and lists editor */
-.editor { width: min(34rem, calc(100% - 2rem)); max-height: 84vh; margin: 12vh auto auto; padding: 1.1rem; overflow-y: auto;
-          border: 1px solid var(--line); border-radius: 18px; background: var(--page); color: var(--ink); }
-.editor::backdrop { background: rgb(16 22 29 / .5); }
-.editor form { display: grid; gap: .9rem; }
-.editor h2 { margin: 0; font-size: 1.25rem; font-weight: 720; }
+.editor { width: min(34rem, calc(100% - 2rem)); max-height: 84vh; margin: 10vh auto auto; padding: 1.25rem; overflow-y: auto;
+          border: 1px solid var(--line); border-radius: 10px; background: var(--page); color: var(--ink); box-shadow: 0 12px 40px rgb(0 0 0 / .18); }
+.editor::backdrop { background: rgb(15 20 26 / .45); }
+.editor form { display: grid; gap: .85rem; }
+.editor h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
 .actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
 .actions .btn-danger { margin-right: auto; }
-.list-rows { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.list-rows { display: grid; gap: .45rem; margin: 0; padding: 0; list-style: none; }
 .list-row { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }   /* wraps only for the color grid */
 .list-row .field { flex: 1; width: auto; }
-.swatch { flex: none; width: 1.75rem; height: 1.75rem; margin-right: .25rem; border-radius: 50%; background: var(--c); }
-.colors { flex-basis: 100%; display: grid; grid-template-columns: repeat(8, 1fr); gap: .5rem; padding: .4rem .2rem .6rem; }   /* D35 */
-.colors button { aspect-ratio: 1; border-radius: 50%; background: var(--c); }
-.colors [aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 2px; }
-.icon-btn { flex: none; width: 2.1rem; height: 2.3rem; border-radius: 10px; font-size: 1.1rem; color: var(--muted); text-align: center; }
-.add-list, .link { justify-self: start; padding: .2rem 0; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
-textarea.field { resize: vertical; }
+.swatch { flex: none; width: 1.5rem; height: 1.5rem; margin-right: .3rem; border-radius: 50%; background: var(--c); }
+.colors { flex-basis: 100%; display: grid; grid-template-columns: repeat(8, 1fr); gap: .45rem; padding: .4rem .2rem .6rem; }   /* D35 */
+.colors button { aspect-ratio: 1; border-radius: 6px; background: var(--c); }
+.colors [aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
+.icon-btn { flex: none; width: 2rem; height: 2.2rem; border-radius: 6px; font-size: 1.05rem; color: var(--muted); text-align: center; }
 
 /* Sign-in, loading, messages */
-.login { display: grid; gap: .75rem; max-width: 22rem; margin: 18vh auto 0; }
-.login h1 { margin: 0; font-size: 2.6rem; font-weight: 780; line-height: 1.1; }
+.login { display: grid; gap: .75rem; width: min(24rem, calc(100% - 2rem)); margin: 16vh auto 0; padding: 2rem;
+         border: 1px solid var(--line); border-radius: 10px; background: var(--side); }
+.login h1 { margin: 0; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
 .hint { margin: 0 0 .5rem; color: var(--muted); }
 .editor .hint { margin: 0; font-size: .88rem; }
 .error { min-height: 1.45em; margin: 0; color: var(--danger); }
-.boot { padding: 2rem 0; color: var(--muted); }
+.boot { padding: 2rem; color: var(--muted); }
 .toast { position: fixed; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom)); transform: translateX(-50%);
-         width: max-content; max-width: calc(100% - 2rem); padding: .7rem 1rem; border-radius: 12px;
+         width: max-content; max-width: calc(100% - 2rem); padding: .65rem 1rem; border-radius: 6px;
          background: var(--ink); color: var(--page); font-size: .92rem; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
-<div class="page">
-  <p id="boot" class="boot">Loading…</p>
+<p id="boot" class="boot">Loading…</p>
 
-  <form id="login" class="login" hidden>
-    <h1>Todo</h1>
-    <p class="hint">Sign in with the account you created in Firebase.</p>
-    <input class="field" name="email" type="email" autocomplete="username" placeholder="Email" required>
-    <input class="field" name="password" type="password" autocomplete="current-password" placeholder="Password" required>
-    <button class="btn btn-primary">Sign in</button>
-    <p id="login-error" class="error" role="alert"></p>
-  </form>
+<form id="login" class="login" hidden>
+  <h1>Todo</h1>
+  <p class="hint">Sign in with the account you created in Firebase.</p>
+  <input class="field" name="email" type="email" autocomplete="username" placeholder="Email" required>
+  <input class="field" name="password" type="password" autocomplete="current-password" placeholder="Password" required>
+  <button class="btn btn-primary">Sign in</button>
+  <p id="login-error" class="error" role="alert"></p>
+</form>
 
-  <main id="main" hidden>
+<main id="main" hidden>
+  <aside class="side">
+    <p class="brand">Todo</p>
     <nav id="tabs" class="tabs" aria-label="Lists"></nav>
+  </aside>
+  <section class="content">
     <p id="status" class="status" role="status" hidden></p>
+    <h1 id="heading" class="heading"></h1>
     <header id="project-head" class="project-head" hidden></header>
     <form id="add" class="composer">
       <input id="add-title" class="field" placeholder="Add a task" aria-label="New task" autocomplete="off" enterkeyhint="done" maxlength="300">
@@ -197,20 +233,21 @@ textarea.field { resize: vertical; }
       <summary id="done-summary"></summary>
       <ul id="done-list" class="list"></ul>
     </details>
-    <footer class="foot">
-      <span id="who"></span>
-      <span class="foot-actions">
-        <button data-act="backup">Download backup</button>
-        <button data-act="restore">Restore backup</button>
-        <button data-act="signout">Sign out</button>
-      </span>
-      <input id="restore-file" type="file" accept=".json,application/json" hidden>
-    </footer>
-  </main>
-</div>
+  </section>
+  <footer class="foot">
+    <span id="who"></span>
+    <span class="foot-actions">
+      <button data-act="backup">Download backup</button>
+      <button data-act="restore">Restore backup</button>
+      <button data-act="signout">Sign out</button>
+    </span>
+    <input id="restore-file" type="file" accept=".json,application/json" hidden>
+  </footer>
+</main>
 
-<dialog id="editor" class="editor" aria-label="Edit task">
+<dialog id="editor" class="editor" aria-labelledby="edit-heading">
   <form id="edit-form">
+    <h2 id="edit-heading">Edit task</h2>
     <input id="edit-title" class="field" aria-label="Task" autocomplete="off" maxlength="300" required>
     <textarea id="edit-notes" class="field" rows="4" placeholder="Description" aria-label="Description" maxlength="5000"></textarea>
     <div id="edit-opts" class="picks"></div>
@@ -242,7 +279,7 @@ textarea.field { resize: vertical; }
 <script type="module">
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 // Lists are data, not code: add, rename, recolor, reorder or delete them in the app with
-// the + after the tabs (D9). These are only the lists created at the very first sign-in (D10).
+// the + after the lists (D9). These are only the lists created at the very first sign-in (D10).
 const DEFAULT_LISTS = [
   { id: 'work',    name: 'Work',    color: '#3559a8' },
   { id: 'hobbies', name: 'Hobbies', color: '#a0458a' },
@@ -485,12 +522,14 @@ const euros = cents => (cents / 100).toLocaleString(undefined, { style: 'currenc
 function render() {
   $('#tabs').innerHTML = [{ id: 'all', name: 'All', color: 'var(--ink)' }, ...state.lists].map(list => {
     const n = rowsOf(list.id).filter(t => !t.done).length;
-    return `<button class="tab" data-act="view" data-view="${esc(list.id)}" style="--c:${list.color}"
-      ${list.id === state.view ? 'aria-current="page"' : ''}><span class="tab-name" data-text="${esc(list.name)}">${esc(list.name)}</span>${n ? `<sup>${n}</sup>` : ''}</button>`;
-  }).join('') + (state.listsLoaded
-    ? '<button class="tab-add" data-act="editLists" aria-label="Add or edit lists" title="Add or edit lists">+</button>' : '');
+    return `<button class="tab" data-act="view" data-view="${esc(list.id)}" style="--c:${list.color}" ${list.id === state.view ? 'aria-current="page"' : ''}>
+      <span class="dot"></span><span class="tab-name" data-text="${esc(list.name)}">${esc(list.name)}</span>${n ? `<span class="count">${n}</span>` : ''}</button>`;
+  }).join('') + (state.listsLoaded ? `<button class="tab-add" data-act="editLists" aria-label="Add or edit lists" title="Add or edit lists">
+      +<span class="add-label">New list</span></button>` : '');
 
   const current = listById(state.view), project = shownProject();
+  $('#heading').textContent = current?.name ?? 'All';   // shown on wide screens, where the lists are a sidebar (D36)
+  $('#heading').hidden = Boolean(project);
   $('#add-title').placeholder = project ? 'Add a subtask' : current ? `Add to ${current.name}` : 'Add a task';
   $('#project-head').hidden = !project;
   if (project) $('#project-head').innerHTML = projectHeadHTML(project);
@@ -576,7 +615,7 @@ function openEditor(id) {
   $('#edit-price').value = task.price === null ? '' : (task.price / 100).toFixed(2);
   $('#edit-price').setCustomValidity('');
   $('#make-project').hidden = task.project || Boolean(parentOf(task));  // one level: subtasks stay tasks
-  $('#editor').setAttribute('aria-label', task.project ? 'Edit project' : 'Edit task');
+  $('#edit-heading').textContent = task.project ? 'Edit project' : 'Edit task';
   renderPickers();
   $('#editor').showModal();
   $('#edit-opts .chip, #edit-opts .prio').focus();   // a button, not the text field, so phones don't pop up the keyboard

@@ -239,6 +239,13 @@ async def test_flows(browser, url):
     await page.click('[data-view="all"]')
     check('partial documents render with defaults (D31)', 'Made in the console' in await titles(page))
     await page.screenshot(path=f'{SHOTS}/desktop.png')
+    layout = await page.evaluate("""(() => { const side = document.querySelector('.side').getBoundingClientRect(),
+      list = document.querySelector('#list').getBoundingClientRect(), foot = document.querySelector('.foot').getBoundingClientRect();
+      return { side: [side.left, side.right, side.height], list: [list.left, list.right], foot: foot.right, width: innerWidth, height: innerHeight }; })()""")
+    check('computer: lists in a full-height sidebar, tasks fill the rest of the window (D36)', layout['side'][0] == 0
+          and layout['side'][2] == layout['height'] and layout['list'][0] > layout['side'][1]
+          and layout['list'][1] >= layout['width'] - 60 and layout['foot'] <= layout['side'][1], layout)
+    check('computer: the open list is the page heading', await page.inner_text('#heading') == 'All' and await page.is_visible('#heading'))
 
     await page.click('[data-act="signout"]'); await page.wait_for_timeout(100)
     check('sign out -> sign-in screen', await page.is_visible('#login') and await page.is_hidden('#main'))

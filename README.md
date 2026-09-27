@@ -1,6 +1,6 @@
 # Todo
 
-Your to-do lists on laptop and phone. A task can be on several lists at once, one priority scale covers all of them, and you add or change lists with the + next to the tabs. It works offline and syncs when you reconnect.
+Your to-do lists on laptop and phone. A task can be on several lists at once, one priority scale covers all of them, and you add or change lists with the + after them. It works offline and syncs when you reconnect.
 
 It runs as static files on GitHub Pages, with Firebase's free plan for sign-in and data: no domain, no server, no subscription. Setup takes 30 to 45 minutes, once.
 
@@ -57,7 +57,7 @@ Offline use: once a device has opened the app twice while online, it also opens 
 - **Complete a task** by tapping its circle. Tap the text to edit it, change its lists, priority or price, or delete it.
 - **Projects** are for things with several steps. Open a task and tap **Make it a project**. Tapping a project opens its own page, with a description (**Edit**) and its subtasks; add subtasks there. In a list, the arrow next to a project shows its open subtasks, and you can tick them off right there. Completing a project completes its subtasks; deleting it deletes them.
 - **Prices**: typing a price also puts the task on **To buy**, so everything you need to buy, from every list and project, ends up there. Each list shows the total of its open tasks with a price.
-- **Add a list** with the + after the tabs. The same screen renames lists (edit the name), recolors them (tap the dot, then a color), reorders them (arrows) and deletes them (×). Deleting a list never deletes its tasks. To buy can't be deleted, because it collects everything with a price.
+- **Add a list** with the + after the lists (**New list** in the sidebar on a computer). The same screen renames lists (edit the name), recolors them (tap the dot, then a color), reorders them (arrows) and deletes them (×). Deleting a list never deletes its tasks. To buy can't be deleted, because it collects everything with a price.
 - **Done** keeps completed tasks for 30 days, then deletes them.
 - **Download backup** (at the bottom) saves all lists and tasks to a file. The app doesn't back itself up, so do this now and then. **Restore backup** reads such a file back in; it adds and replaces, but never deletes.
 
