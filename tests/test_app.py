@@ -2,20 +2,22 @@
 
 Serves a temporary copy of the repo. Firebase is replaced by tests/fake-firebase/ (same function
 signatures, data in localStorage), except in test_real_sdk, which loads the actual Firebase build
-from npm and stops at the network. Screenshots for visual review go to /tmp/todo-shots.
+from npm and stops at the network. Screenshots for visual review go to <temp dir>/todo-shots.
 Needs Python Playwright with Chromium; npm for the real-SDK check. Not used by the app itself.
 """
 import asyncio, json, os, re, shutil, subprocess, sys, tempfile, time
 os.environ.setdefault('PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS', '1')  # lets tests route service-worker fetches
 from playwright.async_api import async_playwright, expect
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-REPO, FAKE, SHOTS = os.path.dirname(HERE), os.path.join(HERE, 'fake-firebase'), '/tmp/todo-shots'
-SDK_VERSION = re.search(r'firebasejs/([\d.]+)', open(os.path.join(REPO, 'index.html')).read()).group(1)
+HERE, TMP = os.path.dirname(os.path.abspath(__file__)), tempfile.gettempdir()
+REPO, FAKE, SHOTS = os.path.dirname(HERE), os.path.join(HERE, 'fake-firebase'), os.path.join(TMP, 'todo-shots')
+SDK_VERSION = re.search(r'firebasejs/([\d.]+)', open(os.path.join(REPO, 'index.html'), encoding='utf-8').read()).group(1)
 CONFIG = "export const FIREBASE_CONFIG = { apiKey: 'test-key', authDomain: 'demo.firebaseapp.com', projectId: 'demo', appId: '1:1:web:1' };"
+PLACEHOLDER = "export const FIREBASE_CONFIG = { apiKey: 'PASTE-YOUR-API-KEY', projectId: 'your-project-id' };"   # before README step 2
 NOW, HOUR = int(time.time() * 1000), 3600_000
 SETTINGS = 'users/UID123/settings/app'
-PALETTE = ['#3559a8', '#a0458a', '#23876a', '#c27414', '#6a55c8', '#b5473a', '#2a7d9a', '#6f7f24']
+PALETTE = ['#3559a8', '#a0458a', '#23876a', '#c27414', '#6a55c8', '#b5473a', '#2a7d9a', '#6f7f24',
+           '#d0604a', '#c2417a', '#8e44ad', '#3b7dd8', '#4f9a2e', '#b08a14', '#8a5a3c', '#5b6b7f']
 
 def task(title, lists, prio=2, age_h=1, done_h=None):
     return {'title': title, 'lists': lists, 'prio': prio, 'done': done_h is not None,
@@ -27,22 +29,28 @@ SEED = [task('Send Q3 report to Ana', ['work'], 1, 30), task('Book physio appoin
         task('Replace gym gloves', ['gym', 'buy'], 2, 50), task('Restring the guitar', ['hobbies'], 2, 70),
         task('Update expense sheet', ['work'], 3, 90), task('Finish chapter 4 of Dune', ['hobbies'], 3, 100),
         task('Stretch hamstrings', ['gym'], 3, 10), task('Batteries (AA)', ['buy'], 2, 30, done_h=2),
-        task('Dish soap', ['buy'], 2, 40, done_h=26)]
+        task('Dish soap', ['buy'], 2, 40, done_h=26), dict(task('Protein powder', ['gym', 'buy'], 2, 8), price=2990)]
+TRIP = f'T{len(SEED)}'   # start_signed_in stores SEED[i] as T<i>; these are fields added later (D31)
+SEED += [dict(task('Plan Lisbon trip', ['hobbies'], 1, 6), project=True, notes='Long weekend in May.\nBudget about 600 €.'),
+         dict(task('Book flights', ['buy'], 1, 5), parent=TRIP, price=18900),
+         dict(task('Find a hotel near Alfama', [], 2, 4), parent=TRIP),
+         dict(task('Travel adapter', [], 2, 3, done_h=1), parent=TRIP, price=1250)]
+def find(tasks, title): return next((t for t in tasks.values() if t['title'] == title), None)
 
 results = []
 def check(name, ok, detail=''):
     results.append(bool(ok))
     print(('PASS ' if ok else 'FAIL ') + name + ('' if ok else f'   -> {detail}'))
 
-async def context(browser, url, sdk_dir=FAKE, config=True, sdk_on=None, **options):
-    """A browser context where gstatic's Firebase files come from sdk_dir and firebase-config.js is filled in."""
+async def context(browser, url, sdk_dir=FAKE, config=CONFIG, sdk_on=None, **options):
+    """A browser context where gstatic's Firebase files come from sdk_dir and firebase-config.js is config (never the owner's)."""
     ctx = await browser.new_context(service_workers=options.pop('sw', 'block'), accept_downloads=True, **options)
     async def serve_sdk(route):
         if sdk_on is not None and not sdk_on['on']: return await route.abort()
         await route.fulfill(path=os.path.join(sdk_dir, route.request.url.rsplit('/', 1)[1]),
                             content_type='text/javascript', headers={'Access-Control-Allow-Origin': '*'})
     await ctx.route(f'https://www.gstatic.com/firebasejs/{SDK_VERSION}/*', serve_sdk)
-    if config: await ctx.route('**/firebase-config.js', lambda r: r.fulfill(body=CONFIG, content_type='text/javascript'))
+    await ctx.route('**/firebase-config.js', lambda r: r.fulfill(body=config, content_type='text/javascript'))
     page = await ctx.new_page()
     page.errors = []
     page.on('console', lambda m: m.type == 'error' and page.errors.append(m.text))
@@ -80,7 +88,7 @@ async def edit_lists(page, change):
     await page.click('#lists-form .btn-primary'); await page.wait_for_timeout(100)
 
 async def test_setup_message(browser, url):
-    ctx, page = await context(browser, url, config=False)   # the repo's placeholder config
+    ctx, page = await context(browser, url, config=PLACEHOLDER)
     await page.wait_for_timeout(300)
     check('placeholder config -> setup message', 'firebase-config.js (README, step 2)' in await page.inner_text('#boot'))
     await ctx.close()
@@ -110,7 +118,8 @@ async def test_flows(browser, url):
     tasks = await stored_tasks(page)
     chalk = next(t for t in tasks.values() if t['title'] == 'Climbing chalk')
     check('overlap is one task with two lists (D8)', sorted(chalk['lists']) == ['buy', 'hobbies'], chalk)
-    check('task fields match D7', set(chalk) == {'title', 'lists', 'prio', 'done', 'created', 'doneAt'}, list(chalk))
+    check('task fields match D31', set(chalk) == {'title', 'lists', 'prio', 'done', 'created', 'doneAt', 'project', 'notes', 'parent', 'price'}
+          and (chalk['project'], chalk['notes'], chalk['parent'], chalk['price']) == (False, '', None, None), chalk)
     check('user text is escaped (D26)', await page.evaluate('window.__xss') is None
           and '<img src=x onerror="window.__xss=1">' in await titles(page))
     tabs = await page.evaluate("[...document.querySelectorAll('.tab')].map(t => t.innerText.replace(/\\s+/g, ''))")
@@ -120,6 +129,10 @@ async def test_flows(browser, url):
           for r in await page.locator('#list .task').all_inner_texts()))
     await page.click('[data-view="gym"]')
     check('sort by priority (D12)', await titles(page) == ['Deadlift', 'Replace gloves', 'Stretch'], await titles(page))
+    groups = await page.eval_on_selector_all('#list .group', 'els => els.map(e => e.textContent)')
+    check('priority groups, each under a labelled line (D34)', groups == ['High', 'Normal', 'Low'], groups)
+    background = await page.eval_on_selector('#list .p1 .title', 'e => getComputedStyle(e).backgroundImage')
+    check('no highlighter on High (D21 superseded)', background == 'none', background)
     await page.click('[data-view="work"]')
     check('newest first within a priority (D12)', await titles(page) == ['Report', 'Review', 'Expenses'], await titles(page))
 
@@ -164,9 +177,18 @@ async def test_flows(browser, url):
           await tab_names(page) == ['All', 'Job', 'Hobbies', 'Gym', 'To buy', 'Reading'], await tab_names(page))
     await edit_lists(page, lambda p: p.click('#lists-rows li:nth-child(4) [data-by="-1"]'))
     check('reorder lists', await tab_names(page) == ['All', 'Job', 'Hobbies', 'To buy', 'Gym', 'Reading'], await tab_names(page))
-    await edit_lists(page, lambda p: p.click('#lists-rows li:nth-child(2) .swatch'))
+    async def recolor(p):
+        await p.click('#lists-rows li:nth-child(2) .swatch')
+        swatches = await p.locator('#lists-rows li:nth-child(2) .colors button').count()
+        check('tapping a dot opens a grid of every color (D35)', swatches == len(PALETTE), swatches)
+        await p.click(f'#lists-rows li:nth-child(2) .colors [data-color="{PALETTE[11]}"]')
+        check('picking a color closes the grid', await p.locator('.colors').count() == 0)
+    await edit_lists(page, recolor)
     hobbies = next(l for l in await stored_lists(page) if l['id'] == 'hobbies')
-    check('recolor a list', hobbies['color'] == PALETTE[2], hobbies)
+    check('recolor a list', hobbies['color'] == PALETTE[11], hobbies)
+    await page.click('.tab-add')
+    check('To buy cannot be deleted (D33)', await page.is_disabled('#lists-rows li:nth-child(3) [data-act="dropList"]'))
+    await page.click('#lists-form [data-act="close"]')
 
     await page.click('[data-view="hobbies"]')
     count_before = len(await stored_tasks(page))
@@ -215,7 +237,7 @@ async def test_flows(browser, url):
     check('done tasks older than 30 days are pruned (D13)', 'OLD' not in tasks and 'RECENT' in tasks)
     check('open list is remembered per device (D25)', await page.get_attribute('[data-view="gym"]', 'aria-current') == 'page')
     await page.click('[data-view="all"]')
-    check('partial documents render with defaults (D7)', 'Made in the console' in await titles(page))
+    check('partial documents render with defaults (D31)', 'Made in the console' in await titles(page))
     await page.screenshot(path=f'{SHOTS}/desktop.png')
 
     await page.click('[data-act="signout"]'); await page.wait_for_timeout(100)
@@ -224,6 +246,96 @@ async def test_flows(browser, url):
     await page.evaluate("localStorage.fakeUser = JSON.stringify({ uid: 'UID123', email: 'me@example.com' }); localStorage.denyReads = '1'")
     await page.reload(); await page.wait_for_timeout(300)
     check('rules not published -> explained', 'firestore.rules' in await page.inner_text('#toast'))
+    await ctx.close()
+
+async def test_projects_and_prices(browser, url):
+    ctx, page = await context(browser, url, viewport={'width': 1280, 'height': 860})
+    await start_signed_in(page, SEED)
+
+    # ── Prices and To buy (D33) ──
+    await page.click('[data-view="gym"]')
+    await page.fill('#add-title', 'Creatine'); await page.dispatch_event('#add-title', 'input')
+    await page.fill('#add-price', '12,50')
+    ticked = await page.get_attribute('#add-opts [data-list="buy"]', 'aria-pressed')
+    await page.press('#add-price', 'Enter'); await page.wait_for_timeout(100)
+    creatine = find(await stored_tasks(page), 'Creatine')
+    check('typing a price ticks To buy; the price is stored in cents', ticked == 'true' and creatine['price'] == 1250
+          and sorted(creatine['lists']) == ['buy', 'gym'], creatine)
+    check('the row shows the price', '12.50' in await page.inner_text('#list .task:has-text("Creatine") .aside'))
+    await page.fill('#add-title', 'Resistance band'); await page.dispatch_event('#add-title', 'input')
+    await page.fill('#add-price', 'cheap'); await page.press('#add-price', 'Enter'); await page.wait_for_timeout(100)
+    message = await page.eval_on_selector('#add-price', 'e => e.validationMessage')
+    check('a price that is not a number is refused, with a reason', find(await stored_tasks(page), 'Resistance band') is None
+          and 'number' in message, message)
+    await page.fill('#add-price', ''); await page.fill('#add-title', ''); await page.dispatch_event('#add-title', 'input')
+    await page.click('[data-view="buy"]')
+    check('To buy collects priced tasks from every list and project, with a total',
+          {'Creatine', 'Protein powder', 'Book flights'} <= set(await titles(page)) and '231.40' in await page.inner_text('#total'),
+          (await titles(page), await page.inner_text('#total')))
+    check('a subtask shown on its own is tagged with its project',
+          'Plan Lisbon trip' in await page.inner_text('#list .task:has-text("Book flights") .tags'))
+    await page.click('#list .task:has-text("Creatine") .body')
+    await page.fill('#edit-price', '9.99'); await page.click('#edit-form .btn-primary'); await page.wait_for_timeout(100)
+    check('edit a price', find(await stored_tasks(page), 'Creatine')['price'] == 999)
+
+    # ── Projects (D32) ──
+    await page.click('[data-view="all"]')
+    trip = '#list > .task:has-text("Plan Lisbon trip")'
+    check('a project row shows progress and a closed arrow', await page.inner_text(f'{trip} .aside') == '1/3'
+          and await page.get_attribute(f'{trip} .expand', 'aria-expanded') == 'false')
+    top = lambda: page.locator('#list > .task > .col > .line .title').all_inner_texts()
+    check('in All, subtasks stay under their project', 'Book flights' not in await top())
+    await page.click(f'{trip} .expand')
+    check('the arrow shows the open subtasks under the project',
+          await page.locator(f'{trip} .subs .title').all_inner_texts() == ['Book flights', 'Find a hotel near Alfama'])
+    await page.reload(); await page.wait_for_timeout(250)
+    check('expanded projects are remembered on this device', await page.get_attribute(f'{trip} .expand', 'aria-expanded') == 'true')
+    await page.click(f'{trip} .subs .task:has-text("Find a hotel") .check'); await page.wait_for_timeout(500)
+    check('tick a subtask from the list', await page.inner_text(f'{trip} .aside') == '2/3')
+
+    await page.click(f'{trip} .line .body'); await page.wait_for_timeout(150)
+    check('tapping a project opens its page, with its description', page.url.endswith(f'#p={TRIP}')
+          and await page.inner_text('#project-head h1') == 'Plan Lisbon trip'
+          and 'Budget about 600 €.' in await page.inner_text('#project-head .notes'))
+    await page.screenshot(path=f'{SHOTS}/project-page.png')
+    await add(page, 'Pack sunscreen')
+    subtask = find(await stored_tasks(page), 'Pack sunscreen')
+    check('a subtask added on the project page belongs to it', subtask['parent'] == TRIP and subtask['lists'] == [], subtask)
+    await page.click('#list .task:has-text("Pack sunscreen") .body')
+    check('a subtask cannot become a project (one level)', await page.is_hidden('#make-project') and await page.is_hidden('#edit-notes'))
+    await page.click('#editor [data-act="close"]')
+    await page.click('#project-head [data-act="edit"]')
+    check('the project editor has a description', await page.is_visible('#edit-notes') and await page.is_hidden('#make-project'))
+    await page.fill('#edit-notes', 'Long weekend in May.\nAsk Rita about the hotel.'); await page.click('#edit-form .btn-primary')
+    await page.wait_for_timeout(100)
+    check('edit the description', 'Ask Rita' in await page.inner_text('#project-head .notes'))
+    await page.go_back(); await page.wait_for_timeout(150)
+    check('back (the phone gesture) returns to the list', await page.is_hidden('#project-head') and '#p=' not in page.url)
+
+    await page.click('[data-view="work"]')
+    await page.click('#list .task:has-text("Send Q3 report") .body')
+    await page.click('#make-project'); await page.wait_for_timeout(150)
+    report = next(k for k, t in (await stored_tasks(page)).items() if t['title'] == 'Send Q3 report to Ana')
+    check('make a task a project: its page opens', (await stored_tasks(page))[report]['project'] is True
+          and await page.inner_text('#project-head h1') == 'Send Q3 report to Ana')
+    await add(page, 'Collect numbers')
+    await page.click('#project-head [data-act="back"]'); await page.wait_for_timeout(150)
+    check('the page\'s back button returns to its list', await page.get_attribute('[data-view="work"]', 'aria-current') == 'page'
+          and await page.is_hidden('#project-head'))
+
+    await page.click('[data-view="all"]')
+    await page.click(f'{trip} > .check'); await page.wait_for_timeout(500)
+    tasks = await stored_tasks(page)
+    check('completing a project completes its open subtasks', tasks[TRIP]['done']
+          and all(t['done'] for t in tasks.values() if t.get('parent') == TRIP))
+    await page.click('#done-summary')
+    await page.click('#done-list .task:has-text("Plan Lisbon trip") .body'); await page.wait_for_timeout(150)
+    await page.click('#project-head [data-act="edit"]'); await page.click('#edit-form [data-act="deleteTask"]')
+    await page.wait_for_timeout(150)
+    tasks = await stored_tasks(page)
+    check('deleting a project deletes its subtasks', TRIP not in tasks and not any(t.get('parent') == TRIP for t in tasks.values()))
+    check('a deleted project\'s page falls back to the list', await page.is_hidden('#project-head') and await page.is_visible('#list'))
+    check('projects and prices: no console errors', not page.errors, page.errors)
     await ctx.close()
 
 async def test_offline_first_run(browser, url):
@@ -265,17 +377,24 @@ async def test_phone(browser, url):
             check(f'{name}: task editor focuses a list button, not the text field', focused == 'chip', focused)
             await page.click('#editor [data-act="close"]')
             await page.tap('.tab-add'); await page.keyboard.type('Garden'); await page.wait_for_timeout(100)
+            await page.tap('#lists-rows li:last-child .swatch')
             await page.screenshot(path=f'{shot}-lists.png')
             await page.tap('#lists-form .btn-primary'); await page.wait_for_timeout(100)
             fits = await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             check(f'{name}: a sixth list wraps instead of overflowing', 'Garden' in await tab_names(page) and fits)
+            await page.tap('[data-view="all"]'); await page.tap('#list > .task:has-text("Plan Lisbon trip") .expand')
+            await page.screenshot(path=f'{shot}-project-row.png')
+            await page.tap('#list > .task:has-text("Plan Lisbon trip") .line .body'); await page.wait_for_timeout(150)
+            await page.screenshot(path=f'{shot}-project.png')
+            fits = await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            check(f'{name}: project page opens and fits', fits and await page.is_visible('#project-head'))
             check(f'{name}: no console errors', not page.errors, page.errors)
             await ctx.close()
 
 async def test_real_sdk(browser, url):
-    d = f'/tmp/firebase-{SDK_VERSION}'
+    d = os.path.join(TMP, f'firebase-{SDK_VERSION}')
     if not os.path.exists(f'{d}/node_modules/firebase/firebase-app.js'):   # the CDN build ships in the npm package
-        subprocess.run(['npm', 'install', '--silent', '--prefix', d, f'firebase@{SDK_VERSION}'], check=True)
+        subprocess.run([shutil.which('npm') or 'npm', 'install', '--silent', '--prefix', d, f'firebase@{SDK_VERSION}'], check=True)
     ctx, page = await context(browser, url, sdk_dir=f'{d}/node_modules/firebase')
     await ctx.route(lambda u: 'googleapis.com' in u, lambda r: r.abort())   # no real network in tests
     await page.reload()
@@ -303,8 +422,8 @@ async def test_service_worker(browser, url, root):
     check('service worker: SDK not saved yet + offline -> explains', 'Open the app once while online' in await page.inner_text('#boot'))
     sdk['on'] = True; await ctx.set_offline(False)
     html = os.path.join(root, 'index.html')
-    source = open(html).read()   # read first: open(..., 'w') empties the file
-    open(html, 'w').write(source.replace('<title>Todo</title>', '<title>Todo v2</title>'))
+    source = open(html, encoding='utf-8').read()   # read first: open(..., 'w') empties the file
+    open(html, 'w', encoding='utf-8').write(source.replace('<title>Todo</title>', '<title>Todo v2</title>'))
     await page.reload(); await page.wait_for_timeout(500)
     check('service worker: a new deploy shows on the next online open', await page.title() == 'Todo v2')
     await ctx.close()
@@ -323,6 +442,7 @@ async def main():
             browser = await p.chromium.launch()
             await test_setup_message(browser, url)
             await test_flows(browser, url)
+            await test_projects_and_prices(browser, url)
             await test_offline_first_run(browser, url)
             await test_phone(browser, url)
             await test_real_sdk(browser, url)

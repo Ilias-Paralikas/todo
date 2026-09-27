@@ -13,7 +13,7 @@ Every change must keep meeting all of them.
 5. As few dependencies as possible, and nothing tied to a subscription or account that could change and break the app (Claude included).
 6. No code for the owner: new lists, sections or anything similar are added with a button in the app, never by editing code or asking an LLM.
 
-Also: a task can be on several lists at once, and one priority scale is shared by all lists.
+Also: a task can be on several lists at once, and one priority scale is shared by all lists. A task can grow into a project with its own page, a description and subtasks. To buy collects everything with a price, from every list and project.
 
 ## Before you change anything
 
@@ -35,4 +35,4 @@ Also: a task can be on several lists at once, and one priority scale is shared b
 - Run `python3 tests/test_app.py` and add checks for new behaviour. It needs Python Playwright with Chromium, and npm for the real-SDK check.
 - Hand back only the files you changed, with one line each on what changed. The owner uploads them to GitHub.
 - If `firestore.rules` changed, tell the owner to paste it into Firebase console → Firestore Database → Rules and click Publish.
-- If the data model changes, old documents must keep working (defaults on read, see D7), and "Restore backup" must still read old backups.
+- If the data model changes, old documents must keep working (defaults on read, see D31), and "Restore backup" must still read old backups.

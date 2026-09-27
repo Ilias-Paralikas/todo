@@ -29,6 +29,7 @@ export const deleteDoc = ref => change(d => { delete d[ref.path]; return Promise
 export const writeBatch = () => { const ops = []; return {
   delete: ref => ops.push(d => delete d[ref.path]),
   set: (ref, data) => ops.push(d => { d[ref.path] = structuredClone(data); }),
+  update: (ref, fields) => ops.push(d => { if (d[ref.path]) Object.assign(d[ref.path], structuredClone(fields)); }),
   commit: () => change(d => { ops.forEach(op => op(d)); return Promise.resolve(); }, ['batch', ops.length]),
 }; };
 export function onSnapshot(ref, opts, next, error) {

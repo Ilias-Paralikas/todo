@@ -23,7 +23,7 @@ Rules for this file:
 
 **D6. Paths.** `users/{uid}/tasks/{taskId}`, one document per task, and `users/{uid}/settings/app` for settings synced across devices (today only the lists). Why one document per task: two devices editing different tasks never overwrite each other.
 
-**D7. Task fields.** `title` (string), `lists` (list ids), `prio` (1, 2 or 3), `done` (bool), `created` and `doneAt` (milliseconds from the device clock; `doneAt` is null while open). Missing fields get defaults when read (`toTask`), so documents from older versions or typed into the console still work. Why the device clock: it works offline and sorts immediately, while a server timestamp stays empty until the write reaches the server.
+**D7. Task fields.** *Superseded by D31.* `title` (string), `lists` (list ids), `prio` (1, 2 or 3), `done` (bool), `created` and `doneAt` (milliseconds from the device clock; `doneAt` is null while open). Missing fields get defaults when read (`toTask`), so documents from older versions or typed into the console still work. Why the device clock: it works offline and sorts immediately, while a server timestamp stays empty until the write reaches the server.
 
 **D8. Lists are tags, not folders.** A list is a filter: the tasks whose `lists` include its id. A task on several lists is one record, so completing or editing it anywhere changes it everywhere. A task with no list appears only in All.
 
@@ -57,7 +57,7 @@ Rules for this file:
 
 ## Interface
 
-**D21. Priority is shown as type weight.** High is bold with a highlighter mark, Normal is regular, Low is light and grey. Why: readable at a glance, and a list that is half highlighter makes priority inflation obvious.
+**D21. Priority is shown as type weight.** *Superseded by D34.* High is bold with a highlighter mark, Normal is regular, Low is light and grey. Why: readable at a glance, and a list that is half highlighter makes priority inflation obvious.
 
 **D22. A task row shows the other lists** the task is on, not the one being viewed. In All it shows all of them.
 
@@ -78,3 +78,15 @@ Rules for this file:
 **D29. tests/test_app.py checks the behaviour above** in headless Chromium. It uses a stand-in Firebase (tests/fake-firebase/) for the flows, and the real Firebase SDK (from npm) up to the network. Run it before handing back a change, and add checks for new behaviour. The app never needs the tests to run.
 
 **D30. firebase.json holds the Firebase setup for the Firebase CLI:** the Firestore location (`eur3`, Europe multi-region) and edition (Standard), the rules file, and Email/Password as the only sign-in provider (D3). `firebase deploy --only firestore:rules,auth --project <projectId from firebase-config.js>` applies it; on a new project it also enables the Firestore API and creates the database in that location. Pasting firestore.rules into the console (README, step 5) still works. Why: the owner prefers command-line setup to web consoles, and the file records choices otherwise visible only in the console. The CLI is a deploy tool, not part of the app (D2). The file is public on GitHub Pages like everything else, which is fine: it holds no secrets (D4).
+
+## Projects, prices and display
+
+**D31. Task fields** (supersedes D7). `title` (string), `lists` (list ids), `prio` (1, 2 or 3), `done` (bool), `created` and `doneAt` (milliseconds from the device clock; `doneAt` is null while open), `project` (bool), `notes` (string: a project's description), `parent` (a subtask's project id, else null) and `price` (whole euro cents, or null). Missing or invalid fields get defaults when read (`toTask`), so documents and backups from older versions, or typed into the console, still work. Why the device clock: it works offline and sorts immediately, while a server timestamp stays empty until the write reaches the server. Why cents: totals add up exactly.
+
+**D32. Projects.** A task is a single action; a project is a task with `project: true`, a description and subtasks. Subtasks are ordinary task documents with `parent` set, so each has its own priority, lists and price, and two devices editing different subtasks never collide (D6). One level only: a project is never a subtask, and a subtask whose project is gone stands alone. "Make it a project" in the task editor upgrades a task (one way). Tapping a project opens its page (`#p=<id>` in the address, so the phone's back gesture returns to the list) with its description, its subtasks and a composer that adds subtasks. In a list, a project row shows how many subtasks are done and an arrow that expands its open subtasks under it, tickable there; which projects are expanded is per device (D25). A subtask appears as its own row in a list only when it is on that list and its project isn't (for example a priced subtask in To buy), tagged with its project's name; in All it always stays under its project. Completing a project completes its open subtasks, after a confirmation; deleting a project deletes its subtasks. Why: the owner separates single actions from projects that grow. Keeping subtasks in the same collection lets sync, backup, pruning (D13) and To buy work for them without special cases.
+
+**D33. Prices and To buy.** Any task or subtask can have a price in euros: a field under the priority in the composer (on every page, All included) and in the editor. "4,50" and "4.50" both work; anything else is refused with a message. Typing a price also ticks To buy, the list with id `buy` (`SHOPPING_LIST`); the tick can be undone. Rows show their price, and a list or project page shows the total of its open priced tasks, including its projects' subtasks. To buy can be renamed but not deleted. Why: the owner wants everything to buy, from every list and project, collected in one place. It stays an ordinary list tag (D8) rather than a computed view, so there is one mechanism, and it shows the same on every device and in backups.
+
+**D34. Priority groups** (supersedes D21). Open tasks are shown in groups, High, Normal and Low, each under a small label with a line; empty groups are left out. High titles are bolder and Low titles grey; there is no highlighter. Why: the owner found the highlighter hard to read.
+
+**D35. List colors are picked from a grid.** Tapping a list's dot in the lists editor opens all 16 `PALETTE` colors under it; tapping one picks it and closes the grid. Why: stepping through the colors one tap at a time was impractical.
